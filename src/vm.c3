@@ -1,6 +1,7 @@
 module lox::vm;
 import lox::chunk;
 import lox::common;
+import lox::compiler;
 import lox::value;
 import std::io @norecurse;
 
@@ -65,11 +66,9 @@ fn Value pop()
 /*** INTERPRETER SECTION ***/
 
 /* (Later) compiles the bytecode into [chunk] and calls run_interpreter() */
-fn void! interpret(Chunk *chunk)
+fn void! interpret(char *source)
 {
-    vm.chunk = chunk;
-    vm.ip = vm.chunk.code;
-    return run_interpreter()!;
+    compiler::compile(source);
 }
 
 /* Reads a byte from the compiled bytecode [chunk] */

@@ -5,6 +5,7 @@ import lox::chunk;
 // Lox | Common
 //===----------------------------------------------------------------------===//
 
+/* Enable/disable VM stack tracing during disassembly */
 const bool TRACE_INSTRUCTIONS   @builtin = true;
 
 /*
@@ -21,3 +22,10 @@ macro char to_byte(code) @builtin
 */
 macro OpCode to_code(byte) @builtin
     => (OpCode)byte;
+
+/* Faults defined specifically for Lox */
+fault LoxError
+{
+    UNTERMINATED_COMMENT,
+    USAGE
+}

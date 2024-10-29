@@ -1,54 +1,71 @@
 module lox;
+import std::io;
 
 //===----------------------------------------------------------------------===//
 // Lox | Main
 //===----------------------------------------------------------------------===//
 
-/*
- * PLANS
- *
- * Version [0.1.0]
- * This version of the project will be the complete version of Lox, largely
- * as it was written in the book (with some of the challenges completed as well).
- * There will be some differences as I take advantage of the features of C3, without
- * trying to stray *too* far from the original implementation. The main difference
- * will be my liberal use of the 'String' type from C3, as well as turning many of the
- * functions (such as the ones for the 'Lexer') into methods on that data structure, when
- * it makes sense to do so.
- *
- * Version [0.2.0]
- * This version of the project will be a complete rewrite, taking full advantage of the
- * knowledge I have gained from working on this project multiple times (in different
- * languages), as well as the features of C3.
-*/
+/* Read's a single source file into a (char *) buffer and returns it */
+/* NOTE: This is left public for the sake of the unit tests that depend on it */
+fn char *! read_file(String filename)
+{
+    char[]! src_slice = file::load_new(filename);
+    if (catch excuse = src_slice)
+    {
+        io::eprintf("Could not open file '%s'. Did you spell it right?", filename);
+        return excuse?;
+    }
 
+    char *source = (char *)malloc(src_slice.len + 1);
+    for (usz i = 0; i < src_slice.len; i++)
+        { source[i] = src_slice[i]; }
+    source[src_slice.len] = '\0';
+
+    free(src_slice);
+    return source;
+}
+
+/* Runs a single source file through the VM interpreter */
+fn void! run_file(String filename) @private
+{
+    char *source = read_file(filename)!;
+    defer free(source);
+    vm::interpret(source)!;
+}
+
+/* VERY simple REPL */
+fn void! repl() @private
+{
+    for (;;)
+    {
+        io::print(">>> ");
+
+        String! line = io::readline();
+        if (catch line)
+        {
+            io::printn();
+            return;
+        }
+
+        vm::interpret(line)!;
+        free(line);
+    }
+}
+
+/* Entry Point */
 fn void! main(String[] args)
 {
     vm::init();
     defer vm::free();
 
-    Chunk chunk;
-    chunk.init();
-    defer chunk.free();
-
-    int constant = chunk.add_constant(1.2);
-    chunk.write_opcode(CONSTANT, 123);
-    chunk.write_byte(constant, 123);
-
-    constant = chunk.add_constant(3.4);
-    chunk.write_opcode(CONSTANT, 123);
-    chunk.write_byte(constant, 123);
-
-    chunk.write_opcode(ADD, 123);
-
-    constant = chunk.add_constant(5.6);
-    chunk.write_opcode(CONSTANT, 123);
-    chunk.write_byte(constant, 123);
-
-    chunk.write_opcode(DIVIDE, 123);
-    chunk.write_opcode(NEGATE, 123);
-    chunk.write_opcode(RETURN, 123);
-
-    chunk.disassemble("Test Chunk");
-    vm::interpret(&chunk)!;
+    switch (args.len)
+    {
+        case 1:
+            repl()!;
+        case 2:
+            run_file(args[1])!;
+        default:
+            io::eprintfn("Usage: lox [script]");
+            return LoxError.USAGE?;
+    }
 }

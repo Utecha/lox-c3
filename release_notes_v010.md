@@ -11,6 +11,8 @@ complete with further optimizations, more features, design changes (syntax and s
 
 - Release [0.0.1](<release_notes_v010#Release 0.0.1>)
 - Release [0.0.11](<release_notes_v010#Release 0.0.11>)
+- Release [0.0.2](<release_notes_v010#Release 0.0.2>)
+- Release [0.0.25](<release_notes_v010#Release 0.0.25>)
 
 ## Release 0.0.1
 
@@ -38,3 +40,14 @@ This release is in line with [Chapter 15](https://craftinginterpreters.com/a-vir
 - Completed the challenge to optimize the NEGATE instruction.
 
 #### NOTE: The CONSTANT_LONG instruction will not be supported properly within the VM until the concept of call frames are implemented.
+
+## Release 0.0.25
+
+This release is in line with [Chapter 16](https://craftinginterpreters.com/scanning-on-demand.html#top) of the book.
+
+- Added the ```compile()``` function which is the preamble to the compiler.
+- Added the lexer for the language.
+- Added a simple REPL and function to load a source file, which pass off their inputs to the VM.
+- The interpreter is currently disconnected until the compiler is added. For now, ```interpret()``` runs the compiler which just lexes the source and dumps the tokens to stdout.
+- Renamed the ```constant_long.c3``` unit test to ```chunk.c3``` as it will contain all chunk-related unit tests.
+- Added ```lexer.c3``` to the unit tests. It lexes and dumps the test source files located in ```test/lexer/```.
