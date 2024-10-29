@@ -1,0 +1,60 @@
+/*
+ * This file contains all tokens for the Lox [0.1.0] language, written out individually in order
+ * to test the token generation of the lexer. It also contains things such as this comment, to test
+ * that the lexer properly ignores both line and block comments.
+*/
+
+// Delimiter Tokens
+(           // LPAREN
+)           // RPAREN
+{           // LBRACE
+}           // RBRACE
+,           // COMMA
+.           // DOT
+;           // SEMICOLON
+
+// Assignment Operator Token
+=           // EQUAL
+
+// Equality Operator Tokens
+==          // ISEQ
+!=          // NOTEQ
+
+// Comparison Operator Tokens
+>           // GT
+>=          // GTEQ
+<           // LT
+<=          // LTEQ
+
+// Arithmetic Operator Tokens
+-           // MINUS
++           // PLUS
+/           // SLASH
+*           // STAR
+
+// Logical Operator Token (non-keyword)
+!           // BANG
+
+// Examples of Literals
+add         // IDENTIFIER
+123         // NUMBER
+1.23        // NUMBER
+"hello"     // STRING
+
+// Keywords
+and
+class
+else
+false
+for
+fun
+if
+nil
+or
+print
+return
+super
+this
+true
+var
+while

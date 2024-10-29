@@ -1,0 +1,20 @@
+{
+  "langrev": "1",
+  "authors": ["Chandler Warner <cwarneratwork@proton.me>"],
+  "version": "0.0.1",
+  "warnings": ["no-unused"],
+  "sources": ["src/**"],
+  "output": "build",
+  "dependency-search-paths": ["lib"],
+  "dependencies": [],
+  "targets": {
+    "lox": {
+      "type": "executable",
+      "features": []
+    }
+  },
+  "cpu": "generic",
+  "opt": "O0",
+  "debug-info": "full",
+  "safe": true
+}
