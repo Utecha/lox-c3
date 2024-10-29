@@ -1,6 +1,6 @@
 import lox::chunk;
 
-fn void test_constant_long() @test
+fn void! test_constant_long() @test
 {
     Chunk chunk;
     chunk.init();

@@ -22,8 +22,11 @@ module lox;
  * languages), as well as the features of C3.
 */
 
-fn int main(String[] args)
+fn void! main(String[] args)
 {
+    vm::init();
+    defer vm::free();
+
     Chunk chunk;
     chunk.init();
     defer chunk.free();
@@ -47,5 +50,5 @@ fn int main(String[] args)
     chunk.write_opcode(RETURN, 123);
 
     chunk.disassemble("Test Chunk");
-	return 0;
+    vm::interpret(&chunk)!;
 }

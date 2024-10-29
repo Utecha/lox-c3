@@ -24,3 +24,17 @@ Other updates:
 - Updated README to remove mention of the 'DEBUG' feature flag. That does not apply to to Version [0.1.0] and under.
 - Likewise, I updated the project.json to reflect that the above change.
 - Added the first unit test. Also added folders to begin organizing the unit tests as well as the test source files.
+
+## Release 0.0.2
+
+This release is in line with [Chapter 15](https://craftinginterpreters.com/a-virtual-machine.html#top) of the book.
+
+- Added the virtual machine.
+- Moved the ```to_byte()``` and ```to_code()``` macros into ```common.c3``` as builtins.
+- Added the first debug flag 'TRACE_INSTRUCTIONS'. Set to true to enable stack tracing.
+- Added 5 new instructions: NEGATE, ADD, SUBTRACT, MULTIPLY, DIVIDE.
+- Fixed the function naming conventions for the functions/methods in ```debug.c3```.
+- The ```main()``` function now returns ```void!``` rather than ```int```.
+- Completed the challenge to optimize the NEGATE instruction.
+
+#### NOTE: The CONSTANT_LONG instruction will not be supported properly within the VM until the concept of call frames are implemented.

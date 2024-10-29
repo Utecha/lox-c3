@@ -1,5 +1,6 @@
 module lox::debug;
 import lox::chunk;
+import lox::common;
 import lox::value;
 import std::io @norecurse;
 
@@ -24,13 +25,13 @@ fn void Chunk.disassemble(&self, String name)
     io::eprintfn("=== %s ===", name);
 
     for (int offset = 0; offset < self.count;)
-        { offset = self.disassembleInstruction(offset); }
+        { offset = self.disassemble_instruction(offset); }
 }
 
 /*
  * Disassembles a single instruction at a given [offset] in a bytecode (Chunk).
 */
-fn int Chunk.disassembleInstruction(&self, int offset)
+fn int Chunk.disassemble_instruction(&self, int offset)
 {
     io::eprintf("%04d ", offset);
 
@@ -40,32 +41,32 @@ fn int Chunk.disassembleInstruction(&self, int offset)
     else
         { io::eprintf("%4d ", line); }
 
-    OpCode instruction = chunk::to_code(self.code[offset]);
+    OpCode instruction = to_code(self.code[offset]);
     switch (instruction)
     {
         case CONSTANT_LONG:
-            return constantLongInstruction(self, offset);
+            return constant_long_instruction(self, offset);
         case CONSTANT:
-            return constantInstruction(self, offset);
+            return constant_instruction(self, offset);
         case NEGATE:
-            return simpleInstruction("NEGATE", offset);
+            return simple_instruction("NEGATE", offset);
         case ADD:
-            return simpleInstruction("ADD", offset);
+            return simple_instruction("ADD", offset);
         case SUBTRACT:
-            return simpleInstruction("SUBTRACT", offset);
+            return simple_instruction("SUBTRACT", offset);
         case MULTIPLY:
-            return simpleInstruction("MULTIPLY", offset);
+            return simple_instruction("MULTIPLY", offset);
         case DIVIDE:
-            return simpleInstruction("DIVIDE", offset);
+            return simple_instruction("DIVIDE", offset);
         case RETURN:
-            return simpleInstruction("RETURN", offset);
+            return simple_instruction("RETURN", offset);
     }
 }
 
 /*
  * Disassembles an (OpCode.CONSTANT_LONG) instruction.
 */
-fn int constantLongInstruction(Chunk *chunk, int offset)
+fn int constant_long_instruction(Chunk *chunk, int offset)
 {
     int index = (chunk.code[offset + 1] << 16) |
                 (chunk.code[offset + 2] << 8) |
@@ -79,7 +80,7 @@ fn int constantLongInstruction(Chunk *chunk, int offset)
 /*
  * Disassembles an (OpCode.CONSTANT) instruction.
 */
-fn int constantInstruction(Chunk *chunk, int offset)
+fn int constant_instruction(Chunk *chunk, int offset)
 {
     int index = chunk.code[offset + 1];
     io::eprintf("%-16s %4d '", "CONSTANT", index);
@@ -91,7 +92,7 @@ fn int constantInstruction(Chunk *chunk, int offset)
 /*
  * Disassembles any simple (one byte) instruction.
 */
-fn int simpleInstruction(String name, int offset)
+fn int simple_instruction(String name, int offset)
 {
     io::eprintfn(name);
     return offset + 1;

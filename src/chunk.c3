@@ -1,4 +1,5 @@
 module lox::chunk;
+import lox::common;
 import lox::memory;
 import lox::value;
 
@@ -22,19 +23,6 @@ enum OpCode : char
     DIVIDE,
     RETURN,
 }
-
-/*
- * Casts an 'OpCode' (or anything, really) to a 'char'.
- * This is mostly used to convert an 'OpCode' and 'int' index value of
- * a constant to a 'char' in order for it to fit into the bytecode array.
-*/
-macro char to_byte(code) => (char)code;
-
-/*
- * Casts a [char] to an [OpCode]
- * This is mostly used by the VM itself and the disassembler.
-*/
-macro OpCode to_code(byte) => (OpCode)byte;
 
 //===----------------------------------------------------------------------===//
 // Lox | Bytecode 'Chunk'

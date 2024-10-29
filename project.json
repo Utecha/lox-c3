@@ -1,7 +1,7 @@
 {
   "langrev": "1",
   "authors": ["Chandler Warner <cwarneratwork@proton.me>"],
-  "version": "0.0.1",
+  "version": "0.0.2",
   "warnings": ["no-unused"],
   "sources": ["src/**", "test/**"],
   "output": "build",
