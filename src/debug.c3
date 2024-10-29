@@ -43,6 +43,8 @@ fn int Chunk.disassembleInstruction(&self, int offset)
     OpCode instruction = chunk::to_code(self.code[offset]);
     switch (instruction)
     {
+        case CONSTANT_LONG:
+            return constantLongInstruction(self, offset);
         case CONSTANT:
             return constantInstruction(self, offset);
         case NEGATE:
@@ -60,15 +62,35 @@ fn int Chunk.disassembleInstruction(&self, int offset)
     }
 }
 
+/*
+ * Disassembles an (OpCode.CONSTANT_LONG) instruction.
+*/
+fn int constantLongInstruction(Chunk *chunk, int offset)
+{
+    int index = (chunk.code[offset + 1] << 16) |
+                (chunk.code[offset + 2] << 8) |
+                (chunk.code[offset + 3]);
+    io::eprintf("%-16s %4d '", "CONSTANT LONG", index);
+    value::print(chunk.constants.values[index], io::stderr());
+    io::eprintfn("'");
+    return offset + 4;
+}
+
+/*
+ * Disassembles an (OpCode.CONSTANT) instruction.
+*/
 fn int constantInstruction(Chunk *chunk, int offset)
 {
     int index = chunk.code[offset + 1];
-    io::eprintf("%-10s %4d '", "CONSTANT", index);
+    io::eprintf("%-16s %4d '", "CONSTANT", index);
     value::print(chunk.constants.values[index], io::stderr());
     io::eprintfn("'");
     return offset + 2;
 }
 
+/*
+ * Disassembles any simple (one byte) instruction.
+*/
 fn int simpleInstruction(String name, int offset)
 {
     io::eprintfn(name);

@@ -8,6 +8,9 @@ import lox::value;
 
 enum OpCode : char
 {
+    /* Constant Long Instruction (four bytes) */
+    CONSTANT_LONG,
+
     /* Constant Instructions (two bytes) */
     CONSTANT,
 
@@ -153,6 +156,34 @@ fn void Chunk.write_opcode(&self, OpCode code, int line)
 fn void Chunk.write_byte(&self, int byte, int line)
 {
     self.write(to_byte(byte), line);
+}
+
+/*
+ * Add's a constant [value] to the (Chunk)s constants pool, then writes
+ * the appropriate instruction based on the index of that constant.
+ *
+ * If the index of [value] < 256, it writes an (OpCode.CONSTANT) instruction.
+ * If the index of [value] > 256, it writes an (OpCode.CONSTANT_LONG) instruction.
+ *
+ * (OpCode.CONSTANT_LONG) has a 24-bit number as its operand, making the total size
+ * 4 bytes long, compared to the 2 bytes of (OpCode.CONSANT).
+*/
+fn void Chunk.write_constant(&self, Value value, int line)
+{
+    int index = self.add_constant(value);
+
+    if (index < 256)
+    {
+        self.write_opcode(CONSTANT, line);
+        self.write_byte(index, line);
+    }
+    else
+    {
+        self.write_opcode(CONSTANT_LONG, line);
+        self.write_byte((index >> 16) & 0xff, line);
+        self.write_byte((index >> 8) & 0xff, line);
+        self.write_byte(index & 0xff, line);
+    }
 }
 
 /*

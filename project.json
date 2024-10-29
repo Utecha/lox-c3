@@ -3,7 +3,7 @@
   "authors": ["Chandler Warner <cwarneratwork@proton.me>"],
   "version": "0.0.1",
   "warnings": ["no-unused"],
-  "sources": ["src/**"],
+  "sources": ["src/**", "test/**"],
   "output": "build",
   "dependency-search-paths": ["lib"],
   "dependencies": [],
