@@ -15,6 +15,8 @@ features.
 
 To build this project, you must first install the [C3 language](https://c3-lang.org/).
 
+#### NOTE: For whatever reason the latest stable C3 compiler (version 0.6.3) does not like a particular comment in my code and I'm not really sure why. To be safe, make sure you install the release marked as 'latest', not one marked with a specific version. Or, just clone the repo and compile it from source using the instructions found in their README
+
 To build, run:
 
 ```sh
@@ -28,3 +30,4 @@ The compiler has a simple built-in REPL for playing around with the language. It
 ## License
 
 This project is licensed under the MIT License.
+

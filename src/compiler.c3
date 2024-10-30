@@ -152,6 +152,7 @@ fn void ternary() @private
     parse_precedence(CONDITIONAL);
     consume(COLON, "Expected ':' between ternary 'true' and 'false' branches");
     parse_precedence(CONDITIONAL);
+    emit_opcode(TERNARY);
 }
 
 fn void binary() @private
@@ -162,11 +163,28 @@ fn void binary() @private
 
     switch (op_type)
     {
+        case ISEQ:      emit_opcode(EQUAL);
+        case NOTEQ:     emit_opcodes(EQUAL, NOT);
+        case GT:        emit_opcode(GREATER);
+        case GTEQ:      emit_opcodes(LESS, NOT);
+        case LT:        emit_opcode(LESS);
+        case LTEQ:      emit_opcodes(GREATER, NOT);
         case MINUS:     emit_opcode(SUBTRACT);
         case PLUS:      emit_opcode(ADD);
         case SLASH:     emit_opcode(DIVIDE);
         case STAR:      emit_opcode(MULTIPLY);
         default:        unreachable();
+    }
+}
+
+fn void literal() @private
+{
+    switch (parser.previous.type)
+    {
+        case FALSE: emit_opcode(FALSE);
+        case NIL:   emit_opcode(NIL);
+        case TRUE:  emit_opcode(TRUE);
+        default:    unreachable();
     }
 }
 
@@ -185,7 +203,7 @@ fn void number() @private
         return;
     }
 
-    emit_constant(value);
+    emit_constant(number_val(value));
 }
 
 fn void unary() @private
@@ -198,6 +216,7 @@ fn void unary() @private
     // Emit the operator instruction
     switch (op_type)
     {
+        case NOT:   emit_opcode(NOT);
         case MINUS: emit_opcode(NEGATE);
         default:    unreachable();
     }
@@ -216,34 +235,34 @@ ParseRule[*] rules = {
     [TokenType.EQUAL]       = { null,       null,       NONE },
     [TokenType.QMARK]       = { null,       &ternary,   CONDITIONAL },
     [TokenType.COLON]       = { null,       null,       NONE },
-    [TokenType.ISEQ]        = { null,       null,       NONE },
-    [TokenType.NOTEQ]       = { null,       null,       NONE },
-    [TokenType.GT]          = { null,       null,       NONE },
-    [TokenType.GTEQ]        = { null,       null,       NONE },
-    [TokenType.LT]          = { null,       null,       NONE },
-    [TokenType.LTEQ]        = { null,       null,       NONE },
+    [TokenType.ISEQ]        = { null,       &binary,    EQUALITY },
+    [TokenType.NOTEQ]       = { null,       &binary,    EQUALITY },
+    [TokenType.GT]          = { null,       &binary,    COMPARISON },
+    [TokenType.GTEQ]        = { null,       &binary,    COMPARISON },
+    [TokenType.LT]          = { null,       &binary,    COMPARISON },
+    [TokenType.LTEQ]        = { null,       &binary,    COMPARISON },
     [TokenType.MINUS]       = { &unary,     &binary,    TERM },
     [TokenType.PLUS]        = { null,       &binary,    TERM },
     [TokenType.SLASH]       = { null,       &binary,    FACTOR },
     [TokenType.STAR]        = { null,       &binary,    FACTOR },
-    [TokenType.NOT]         = { null,       null,       NONE },
+    [TokenType.NOT]         = { &unary,     null,       NONE },
     [TokenType.IDENTIFIER]  = { null,       null,       NONE },
     [TokenType.NUMBER]      = { &number,    null,       NONE },
     [TokenType.STRING]      = { null,       null,       NONE },
     [TokenType.AND]         = { null,       null,       NONE },
     [TokenType.CLASS]       = { null,       null,       NONE },
     [TokenType.ELSE]        = { null,       null,       NONE },
-    [TokenType.FALSE]       = { null,       null,       NONE },
+    [TokenType.FALSE]       = { &literal,   null,       NONE },
     [TokenType.FOR]         = { null,       null,       NONE },
     [TokenType.FUN]         = { null,       null,       NONE },
     [TokenType.IF]          = { null,       null,       NONE },
-    [TokenType.NIL]         = { null,       null,       NONE },
+    [TokenType.NIL]         = { &literal,   null,       NONE },
     [TokenType.OR]          = { null,       null,       NONE },
     [TokenType.PRINT]       = { null,       null,       NONE },
     [TokenType.RETURN]      = { null,       null,       NONE },
     [TokenType.SUPER]       = { null,       null,       NONE },
     [TokenType.THIS]        = { null,       null,       NONE },
-    [TokenType.TRUE]        = { null,       null,       NONE },
+    [TokenType.TRUE]        = { &literal,   null,       NONE },
     [TokenType.VAR]         = { null,       null,       NONE },
     [TokenType.WHILE]       = { null,       null,       NONE },
 };

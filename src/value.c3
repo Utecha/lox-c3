@@ -6,8 +6,38 @@ import std::io @norecurse;
 // Lox | Value
 //===----------------------------------------------------------------------===//
 
-/* Temporary -- later values will be a NaN-Tagged double/Tagged Union */
-def Value = double;
+/* (Value) Type Tag */
+enum ValueType : int
+{
+    BOOL,
+    NIL,
+    NUMBER,
+}
+
+/* Tagged Union (Value) */
+struct Value
+{
+    ValueType type;
+    union as
+    {
+        bool boolean;
+        double number;
+    }
+}
+
+/* Macros to check the type tag of a (Value) */
+macro bool is_bool(value)       @builtin => value.type == ValueType.BOOL;
+macro bool is_nil(value)        @builtin => value.type == ValueType.NIL;
+macro bool is_number(value)     @builtin => value.type == ValueType.NUMBER;
+
+/* Macros to extract the underlying C3 value from a Lox (Value) */
+macro bool as_bool(value)       @builtin => value.as.boolean;
+macro double as_number(value)   @builtin => value.as.number;
+
+/* Macros to lift a C3 value to the appropriate Lox (Value) */
+macro Value bool_val(value)     @builtin => { ValueType.BOOL, { .boolean = value } };
+macro Value nil_val()           @builtin => { ValueType.NIL, { .number = 0 } };
+macro Value number_val(value)   @builtin => { ValueType.NUMBER, { .number = value } };
 
 /*
  * Prints a [value] to the desired output [stream]. Excluding the stream argument
@@ -15,7 +45,27 @@ def Value = double;
 */
 fn void print(Value value, OutStream stream = io::stdout())
 {
-    (void) io::fprintf(stream, "%g", value);
+    switch (value.type)
+    {
+        case BOOL:
+            (void) io::fprintf(stream, as_bool(value) ? "true" : "false");
+        case NIL:
+            (void) io::fprintf(stream, "nil");
+        case NUMBER:
+            (void) io::fprintf(stream, "%g", as_number(value));
+    }
+}
+
+fn bool equal(Value a, Value b)
+{
+    if (a.type != b.type) return false;
+    switch (a.type)
+    {
+        case BOOL:      return as_bool(a) == as_bool(b);
+        case NIL:       return true;
+        case NUMBER:    return as_number(a) == as_number(b);
+        default:        return false;
+    }
 }
 
 //===----------------------------------------------------------------------===//

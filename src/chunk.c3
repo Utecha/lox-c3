@@ -16,6 +16,14 @@ enum OpCode : char
     CONSTANT,
 
     /* Simple Instructions (one byte) */
+    TERNARY,
+    EQUAL,
+    GREATER,
+    LESS,
+    NIL,
+    TRUE,
+    FALSE,
+    NOT,
     NEGATE,
     ADD,
     SUBTRACT,

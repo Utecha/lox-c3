@@ -13,6 +13,8 @@ complete with further optimizations, more features, design changes (syntax and s
 - Release [0.0.11](<release_notes_v010#Release 0.0.11>)
 - Release [0.0.2](<release_notes_v010#Release 0.0.2>)
 - Release [0.0.25](<release_notes_v010#Release 0.0.25>)
+- Release [0.0.2](<release_notes_v010#Release 0.0.3>)
+- Release [0.0.35](<release_notes_v010#Release 0.0.35>)
 
 ## Release 0.0.1
 
@@ -23,6 +25,7 @@ This release is in line with [Chapter 14](https://craftinginterpreters.com/chunk
 Along with the original implementation are the completion of the challenges for run-length encoded line information, and the CONSTANT_LONG instruction.
 
 Other updates:
+
 - Updated README to remove mention of the 'DEBUG' feature flag. That does not apply to to Version [0.1.0] and under.
 - Likewise, I updated the project.json to reflect that the above change.
 - Added the first unit test. Also added folders to begin organizing the unit tests as well as the test source files.
@@ -39,7 +42,7 @@ This release is in line with [Chapter 15](https://craftinginterpreters.com/a-vir
 - The ```main()``` function now returns ```void!``` rather than ```int```.
 - Completed the challenge to optimize the NEGATE instruction.
 
-#### NOTE: The CONSTANT_LONG instruction will not be supported properly within the VM until the concept of call frames are implemented.
+#### NOTE: The CONSTANT_LONG instruction will not be supported properly within the VM until the concept of call frames are implemented
 
 ## Release 0.0.25
 
@@ -65,3 +68,15 @@ This release is in line with [Chapter 17](https://craftinginterpreters.com/compi
 - Basic support in the compiler for the ternary (?:) operator. Without jumping too far ahead, I don't have the necessary functionality to support it all the way through interpretation. Despite that, it will run without producing an error, and the VM simply returns the result of the last expression pushed onto the stack, which is the 'false' branch.
 - Some minor function renaming in the unit tests, as well as a new unit test for the VM.
 - Added ```issues.md``` to document known bugs and other issues.
+
+## Release 0.0.35
+
+This release is in line with [Chapter 18](https://craftinginterpreters.com/types-of-values.html#top) of the book.
+
+- The dynamic typing system has been expanded to include more types: boolean and nil.
+- Added support for equality and comparison operators (==, !=, >, >=, <, <=).
+- Finished support for the ternary operator. It should now work as you'd expect.
+- Introduced the concept of falsiness (or truthiness?). false and nil are falsey, everything else is truthy.
+
+The language is starting to become a little bit more useful now. It is still missing strings, functions, classes, etc. at this point but it is now possible to compute logic and not just arithmetic.
+

@@ -49,6 +49,18 @@ fn void reset_stack() @local
     vm.stack_top = &vm.stack[0];
 }
 
+fn void runtime_error(String message, args...) @private
+{
+    io::eprintf("Runtime Error: ");
+    io::eprintfn(message, ...args);
+
+    int instruction = (int)(vm.ip - vm.chunk.code - 1);
+    int line = vm.chunk.get_line(instruction);
+    io::eprintfn("[line %d] in script", line);
+
+    reset_stack();
+}
+
 /* Push a [value] onto the [stack] */
 fn void push(Value value)
 {
@@ -61,6 +73,18 @@ fn Value pop()
 {
     vm.stack_top--;
     return *vm.stack_top;
+}
+
+/* Peek at a [value] by [distance] in the [stack] */
+fn Value peek(int distance) @private
+{
+    return vm.stack_top[-1 - distance];
+}
+
+/* Determines whether or not a [value] is 'falsey' */
+fn bool is_falsey(Value value) @private
+{
+    return is_nil(value) || (is_bool(value) && !as_bool(value));
 }
 
 /*** INTERPRETER SECTION ***/
@@ -104,27 +128,37 @@ fn Value read_constant_long() @local
 /* Performs binary operations on values based on the [op] provided */
 fn void! binary_op(char op) @local
 {
-    Value b = pop();
-    Value a = pop();
+    if (!is_number(peek(0)) && !is_number(peek(1)))
+    {
+        runtime_error("Binary (non-addition) operands must be numbers");
+        return VmResult.RUNTIME_ERROR?;
+    }
+
+    double b = as_number(pop());
+    double a = as_number(pop());
 
     switch (op)
     {
-        case '+':   push(a + b);
-        case '-':   push(a - b);
-        case '*':   push(a * b);
         case '/':
+        {
             if (b == 0)
             {
-                io::eprintfn("Cannot divide by zero");
+                runtime_error("Cannot divide by zero");
                 return VmResult.RUNTIME_ERROR?;
             }
-            push(a / b);
+            push(number_val(a / b));
+        }
+        case '+':   push(number_val(a + b));
+        case '-':   push(number_val(a - b));
+        case '*':   push(number_val(a * b));
+        case '>':   push(bool_val(a > b));
+        case '<':   push(bool_val(a < b));
         default:    unreachable();
     }
 }
 
 /* Runs the [vm] interpreter loop on the current compiled bytecode [chunk] */
-fn void! run_interpreter()
+fn void! run_interpreter() @private
 {
     for (;;)
     {
@@ -149,8 +183,36 @@ fn void! run_interpreter()
             case CONSTANT:
                 Value constant = read_constant();
                 push(constant);
+            case TERNARY:
+                Value falsey = pop();
+                Value truthy = pop();
+
+                !is_falsey(pop()) ? push(truthy) : push(falsey);
+            case EQUAL:
+                Value b = pop();
+                Value a = pop();
+
+                push(bool_val(value::equal(a, b)));
+            case GREATER:
+                binary_op('>')!;
+            case LESS:
+                binary_op('<')!;
+            case NIL:
+                push(nil_val());
+            case TRUE:
+                push(bool_val(true));
+            case FALSE:
+                push(bool_val(false));
+            case NOT:
+                push(bool_val(is_falsey(pop())));
             case NEGATE:
-                push(-*(--vm.stack_top));
+                if (!is_number(peek(0)))
+                {
+                    runtime_error("Negation operand must be a number");
+                    return VmResult.RUNTIME_ERROR?;
+                }
+
+                push(number_val(-as_number(*(--vm.stack_top))));
             case ADD:
                 binary_op('+')!;
             case SUBTRACT:

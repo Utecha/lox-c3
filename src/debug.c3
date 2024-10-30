@@ -48,6 +48,22 @@ fn int Chunk.disassemble_instruction(&self, int offset)
             return constant_long_instruction(self, offset);
         case CONSTANT:
             return constant_instruction(self, offset);
+        case TERNARY:
+            return simple_instruction("TERNARY", offset);
+        case EQUAL:
+            return simple_instruction("EQUAL", offset);
+        case GREATER:
+            return simple_instruction("GREATER", offset);
+        case LESS:
+            return simple_instruction("LESS", offset);
+        case NIL:
+            return simple_instruction("NIL", offset);
+        case TRUE:
+            return simple_instruction("TRUE", offset);
+        case FALSE:
+            return simple_instruction("FALSE", offset);
+        case NOT:
+            return simple_instruction("NOT", offset);
         case NEGATE:
             return simple_instruction("NEGATE", offset);
         case ADD:
