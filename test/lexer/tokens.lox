@@ -16,6 +16,10 @@
 // Assignment Operator Token
 =           // EQUAL
 
+// Ternary Operator Tokens
+?           // QMARK
+:           // COLON
+
 // Equality Operator Tokens
 ==          // ISEQ
 !=          // NOTEQ

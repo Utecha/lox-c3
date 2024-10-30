@@ -6,6 +6,7 @@ import lox::chunk;
 //===----------------------------------------------------------------------===//
 
 /* Enable/disable VM stack tracing during disassembly */
+const bool DUMP_CHUNK           @builtin = false;
 const bool TRACE_INSTRUCTIONS   @builtin = true;
 
 /*

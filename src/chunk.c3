@@ -189,7 +189,7 @@ fn int Chunk.get_line(&self, int offset)
         Line *line = &self.lines[mid];
 
         if (offset < line.offset)
-            { end = mid - 1; }
+            { end = mid; }
         else if (mid == self.line_count - 1 || offset < self.lines[mid + 1].offset)
             { return line.number; }
         else

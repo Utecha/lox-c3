@@ -1,5 +1,5 @@
 import lox;
-import std::io;
+import std::io @norecurse;
 
 /*
  * This is basically the pre-compiler implementation 'compile' function turned into
@@ -13,6 +13,9 @@ fn void! dump_tokens() @test
 
     /* Run the [source] through the lexer and dump the tokens */
     lexer::init(source);
+
+    /* Fix funky output */
+    io::printn();
 
     int line = -1;
     for (;;)
@@ -39,7 +42,7 @@ fn void lex_test_program() @test
     char *source = lox::read_file("test/lexer/program.lox")!;
     defer free(source);
 
-    /* Fix funky output from this not being the first function to run */
+    /* Fix funky output */
     io::printn();
 
     /* Run the [source] through the lexer and dump the tokens */

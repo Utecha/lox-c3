@@ -43,11 +43,11 @@ fn void! repl() @private
         String! line = io::readline();
         if (catch line)
         {
-            io::printn();
+            io::print("\r");
             return;
         }
 
-        vm::interpret(line)!;
+        (void) vm::interpret(line);
         free(line);
     }
 }

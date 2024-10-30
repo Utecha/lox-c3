@@ -23,6 +23,10 @@ enum TokenType : int
     /* Assignment */
     EQUAL,
 
+    /* Conditional (Ternary Operators) */
+    QMARK,
+    COLON,
+
     /* Equality */
     ISEQ,
     NOTEQ,
@@ -298,6 +302,8 @@ fn Token get_token()
         case '+':   return make_token(PLUS);
         case '/':   return make_token(SLASH);
         case '*':   return make_token(STAR);
+        case '?':   return make_token(QMARK);
+        case ':':   return make_token(COLON);
         case '"':   return string();
 
         case '!':

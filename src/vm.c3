@@ -10,7 +10,7 @@ import std::io @norecurse;
 //===----------------------------------------------------------------------===//
 
 /* Maximum stack size */
-const uint STACK_MAX = 256;
+const uint STACK_MAX = 512;
 
 /* Faults thrown to signal compiler/runtime errors */
 fault VmResult
@@ -68,7 +68,16 @@ fn Value pop()
 /* (Later) compiles the bytecode into [chunk] and calls run_interpreter() */
 fn void! interpret(char *source)
 {
-    compiler::compile(source);
+    Chunk chunk;
+    chunk.init();
+    defer chunk.free();
+
+    if (!compiler::compile(source, &chunk))
+        { return VmResult.COMPILE_ERROR?; }
+
+    vm.chunk = &chunk;
+    vm.ip = vm.chunk.code;
+    return run_interpreter()!;
 }
 
 /* Reads a byte from the compiled bytecode [chunk] */
@@ -104,7 +113,11 @@ fn void! binary_op(char op) @local
         case '-':   push(a - b);
         case '*':   push(a * b);
         case '/':
-            if (b == 0) return VmResult.RUNTIME_ERROR?;
+            if (b == 0)
+            {
+                io::eprintfn("Cannot divide by zero");
+                return VmResult.RUNTIME_ERROR?;
+            }
             push(a / b);
         default:    unreachable();
     }

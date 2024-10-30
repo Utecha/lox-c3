@@ -7,7 +7,7 @@ import std::io @norecurse;
 //===----------------------------------------------------------------------===//
 
 /* Temporary -- later values will be a NaN-Tagged double/Tagged Union */
-distinct Value = inline double;
+def Value = double;
 
 /*
  * Prints a [value] to the desired output [stream]. Excluding the stream argument

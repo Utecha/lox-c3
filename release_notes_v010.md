@@ -51,3 +51,17 @@ This release is in line with [Chapter 16](https://craftinginterpreters.com/scann
 - The interpreter is currently disconnected until the compiler is added. For now, ```interpret()``` runs the compiler which just lexes the source and dumps the tokens to stdout.
 - Renamed the ```constant_long.c3``` unit test to ```chunk.c3``` as it will contain all chunk-related unit tests.
 - Added ```lexer.c3``` to the unit tests. It lexes and dumps the test source files located in ```test/lexer/```.
+
+## Release 0.0.3
+
+This release is in line with [Chapter 17](https://craftinginterpreters.com/compiling-expressions.html#top) of the book.
+
+- Implemented the compiler, completing the entire pipeline (from source to interpretation).
+- Temporarily bumped the capacity of the VM stack to 512 in order to support up to 256 CONSTANT_LONG instructions (512 total instructions loaded at once).
+- With the above in mind, CONSTANT_LONG's are fully supported even through interpretation.
+- Currently supports numbers, basic arithmetic binary operators, and the negation operator.
+- Fixed the REPL so that it no longer yeets you out on error.
+- Exiting of the REPL now outputs a single carriage return, rather than a newline. This makes the exit look a little cleaner.
+- Basic support in the compiler for the ternary (?:) operator. Without jumping too far ahead, I don't have the necessary functionality to support it all the way through interpretation. Despite that, it will run without producing an error, and the VM simply returns the result of the last expression pushed onto the stack, which is the 'false' branch.
+- Some minor function renaming in the unit tests, as well as a new unit test for the VM.
+- Added ```issues.md``` to document known bugs and other issues.
