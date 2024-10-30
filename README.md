@@ -6,7 +6,7 @@ This project is an extended version of 'clox', the bytecode VM variant originall
 
 ## Notes
 
-Versions [0.1.0] and earlier are all faithful "extended" implementations of 'clox' as written in the book, minus some C3-isms. The release notes can be found [here](#ADDLATER).
+Versions [0.1.0] and earlier are all faithful "extended" implementations of 'clox' as written in the book, minus some C3-isms. The release notes can be found [here](https://github.com/Utecha/lox-c3/blob/main/release_notes_v010.md).
 
 Versions [0.1.1] and onward will be a complete reimplementation of the language with further optimizations, more features and even some design changes (different syntax and the like). It will also take advantage of more of C3's
 features.
@@ -27,7 +27,11 @@ You can also run these same command, replacing ```build``` with ```run``` to imm
 
 The compiler has a simple built-in REPL for playing around with the language. It can also accept a *single* source file as input.
 
+## Known Issues
+
+Known issues with the compiler can be found [here](https://github.com/Utecha/lox-c3/blob/main/issues.md)
+
 ## License
 
-This project is licensed under the MIT License.
+This project is licensed under the [MIT License](https://github.com/Utecha/lox-c3/blob/main/LICENSE).
 
