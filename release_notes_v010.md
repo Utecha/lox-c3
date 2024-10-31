@@ -13,8 +13,9 @@ complete with further optimizations, more features, design changes (syntax and s
 - Release [0.0.11](<release_notes_v010#Release 0.0.11>)
 - Release [0.0.2](<release_notes_v010#Release 0.0.2>)
 - Release [0.0.25](<release_notes_v010#Release 0.0.25>)
-- Release [0.0.2](<release_notes_v010#Release 0.0.3>)
+- Release [0.0.3](<release_notes_v010#Release 0.0.3>)
 - Release [0.0.35](<release_notes_v010#Release 0.0.35>)
+- Release [0.0.4](<release_notes_v010#Release 0.0.4>)
 
 ## Release 0.0.1
 
@@ -80,3 +81,13 @@ This release is in line with [Chapter 18](https://craftinginterpreters.com/types
 
 The language is starting to become a little bit more useful now. It is still missing strings, functions, classes, etc. at this point but it is now possible to compute logic and not just arithmetic.
 
+## Release 0.0.4
+
+This release is in line with [Chapter 19](https://craftinginterpreters.com/strings.html#top) of the book.
+
+- The concept of objects exist within the internals of the compiler. They are used to represent heap-allocated structures.
+- Strings have been added to the language.
+- Fixed some small typos and such in this file and others.
+- Updated ```chunk.c3``` in the unit tests to reflect the changes to the 'Value' type.
+
+The implementation of strings are not the most efficient, but they work. They will be a bit more memory efficient when hash tables are introduced in the next chapter (and as a result, string interning).

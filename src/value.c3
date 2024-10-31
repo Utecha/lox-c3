@@ -1,5 +1,6 @@
 module lox::value;
 import lox::memory;
+import lox::object;
 import std::io @norecurse;
 
 //===----------------------------------------------------------------------===//
@@ -12,6 +13,7 @@ enum ValueType : int
     BOOL,
     NIL,
     NUMBER,
+    OBJ,
 }
 
 /* Tagged Union (Value) */
@@ -22,6 +24,7 @@ struct Value
     {
         bool boolean;
         double number;
+        Obj *obj;
     }
 }
 
@@ -29,15 +32,18 @@ struct Value
 macro bool is_bool(value)       @builtin => value.type == ValueType.BOOL;
 macro bool is_nil(value)        @builtin => value.type == ValueType.NIL;
 macro bool is_number(value)     @builtin => value.type == ValueType.NUMBER;
+macro bool is_obj(value)        @builtin => value.type == ValueType.OBJ;
 
 /* Macros to extract the underlying C3 value from a Lox (Value) */
 macro bool as_bool(value)       @builtin => value.as.boolean;
 macro double as_number(value)   @builtin => value.as.number;
+macro Obj *as_obj(value)        @builtin => value.as.obj;
 
 /* Macros to lift a C3 value to the appropriate Lox (Value) */
 macro Value bool_val(value)     @builtin => { ValueType.BOOL, { .boolean = value } };
 macro Value nil_val()           @builtin => { ValueType.NIL, { .number = 0 } };
 macro Value number_val(value)   @builtin => { ValueType.NUMBER, { .number = value } };
+macro Value obj_val(object)     @builtin => { ValueType.OBJ, { .obj = (Obj *)object } };
 
 /*
  * Prints a [value] to the desired output [stream]. Excluding the stream argument
@@ -53,6 +59,8 @@ fn void print(Value value, OutStream stream = io::stdout())
             (void) io::fprintf(stream, "nil");
         case NUMBER:
             (void) io::fprintf(stream, "%g", as_number(value));
+        case OBJ:
+            object::print(value, stream);
     }
 }
 
@@ -64,6 +72,10 @@ fn bool equal(Value a, Value b)
         case BOOL:      return as_bool(a) == as_bool(b);
         case NIL:       return true;
         case NUMBER:    return as_number(a) == as_number(b);
+        case OBJ:
+            ObjString *a_string = as_string(a);
+            ObjString *b_string = as_string(b);
+            return mem::equals(a_string.chars, b_string.chars, a_string.len);
         default:        return false;
     }
 }

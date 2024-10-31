@@ -2,6 +2,7 @@ module lox::compiler;
 import lox::chunk;
 import lox::common;
 import lox::lexer;
+import lox::object;
 import lox::value;
 import std::io @norecurse;
 
@@ -206,6 +207,17 @@ fn void number() @private
     emit_constant(number_val(value));
 }
 
+fn void string() @private
+{
+    emit_constant(
+        obj_val(
+            object::copy_string(
+                parser.previous.lexeme[1..],
+                parser.previous.lexeme.len - 2)
+        )
+    );
+}
+
 fn void unary() @private
 {
     TokenType op_type = parser.previous.type;
@@ -248,7 +260,7 @@ ParseRule[*] rules = {
     [TokenType.NOT]         = { &unary,     null,       NONE },
     [TokenType.IDENTIFIER]  = { null,       null,       NONE },
     [TokenType.NUMBER]      = { &number,    null,       NONE },
-    [TokenType.STRING]      = { null,       null,       NONE },
+    [TokenType.STRING]      = { &string,    null,       NONE },
     [TokenType.AND]         = { null,       null,       NONE },
     [TokenType.CLASS]       = { null,       null,       NONE },
     [TokenType.ELSE]        = { null,       null,       NONE },

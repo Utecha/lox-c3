@@ -2,6 +2,8 @@ module lox::vm;
 import lox::chunk;
 import lox::common;
 import lox::compiler;
+import lox::memory;
+import lox::object;
 import lox::value;
 import std::io @norecurse;
 
@@ -26,6 +28,7 @@ struct Vm
     char *ip;
     Value[STACK_MAX] stack;
     Value *stack_top;
+    Obj *objects;
 }
 
 /* Global VM */
@@ -85,6 +88,22 @@ fn Value peek(int distance) @private
 fn bool is_falsey(Value value) @private
 {
     return is_nil(value) || (is_bool(value) && !as_bool(value));
+}
+
+/* Concatenates two (ObjString)s */
+fn void concatenate() @private
+{
+    ObjString *b = as_string(pop());
+    ObjString *a = as_string(pop());
+
+    int len = a.len + b.len;
+    char *chars = memory::allocate(char, len + 1);
+    mem::copy(chars, a.chars, a.len);
+    mem::copy(chars + a.len, b.chars, b.len);
+    chars[len] = '\0';
+
+    ObjString *result = object::take_string(chars, len);
+    push(obj_val(result));
 }
 
 /*** INTERPRETER SECTION ***/
@@ -148,7 +167,7 @@ fn void! binary_op(char op) @local
             }
             push(number_val(a / b));
         }
-        case '+':   push(number_val(a + b));
+        // case '+':   push(number_val(a + b));
         case '-':   push(number_val(a - b));
         case '*':   push(number_val(a * b));
         case '>':   push(bool_val(a > b));
@@ -214,7 +233,21 @@ fn void! run_interpreter() @private
 
                 push(number_val(-as_number(*(--vm.stack_top))));
             case ADD:
-                binary_op('+')!;
+                if (is_string(peek(0)) && is_string(peek(1)))
+                {
+                    concatenate();
+                }
+                else if (is_number(peek(0)) && is_number(peek(1)))
+                {
+                    double b = as_number(pop());
+                    double a = as_number(pop());
+                    push(number_val(a + b));
+                }
+                else
+                {
+                    runtime_error("Binary (addition) operands must be numbers or strings.");
+                    return VmResult.RUNTIME_ERROR?;
+                }
             case SUBTRACT:
                 binary_op('-')!;
             case MULTIPLY:
