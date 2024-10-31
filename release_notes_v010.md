@@ -16,6 +16,7 @@ complete with further optimizations, more features, design changes (syntax and s
 - Release [0.0.3](<release_notes_v010#Release 0.0.3>)
 - Release [0.0.35](<release_notes_v010#Release 0.0.35>)
 - Release [0.0.4](<release_notes_v010#Release 0.0.4>)
+- Release [0.0.45](<release_notes_v010#Release 0.0.45>)
 
 ## Release 0.0.1
 
@@ -91,3 +92,36 @@ This release is in line with [Chapter 19](https://craftinginterpreters.com/strin
 - Updated ```chunk.c3``` in the unit tests to reflect the changes to the 'Value' type.
 
 The implementation of strings are not the most efficient, but they work. They will be a bit more memory efficient when hash tables are introduced in the next chapter (and as a result, string interning).
+
+## Release 0.0.45
+
+This release is in line with [Chapter 20](https://craftinginterpreters.com/hash-tables.html#top) of the book.
+
+- Fixed a small bug.. and by small, I mean a big one known as a memory leak. I added the ability to free all of the (Obj) pointers, however I never actually *called* it inside of the VM's ```free()``` function. That is fixed now.
+- Added a hash table. It is only really used internally to intern every string, at the moment.
+
+There are some benefits to interning every string:
+  1. Direct equality comparison using the ```==``` operator, which is faster than before.
+  2. Deduplication of strings which saves a bit of memory and *could* speed up lookup as a result.
+  3. Probably more but I'm no CS major.
+
+#### NOTE
+I preemptively implemented an optimization that appears in the, well, Optimizations chapter of the book. That optimization is for the formula that retrieves the index inside of methods like ```Table.find()```. At this point in the book, the formula should look something like this:
+
+```c
+uint index = hash % capacity;
+
+// Then later...
+index = (index + 1) % capacity;
+```
+
+For whatever reason, at least in my earlier attempts at this (don't ask), C3 really was not happy with the original implementation and the tables would break (I can't remember exactly how because its been a little bit...). The fix, oddly enough, was to implement the optimization. That looks like this:
+
+```c
+uint index = hash & (capacity - 1);
+
+// Then later...
+index = (index + 1) & (capacity - 1);
+```
+
+This uses bitwise-and as a faster replacement for the modulo operator. Why it had issues with the actual modulo, I cannot tell you. This is faster anyways, so who really cares, right?

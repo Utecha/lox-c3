@@ -37,6 +37,7 @@ struct ObjString
 {
     Obj obj;
     int len;
+    uint hash;
     char *chars;
 }
 
@@ -66,6 +67,7 @@ fn bool is_obj_type(Value value, ObjType type) @builtin @inline
     return is_obj(value) && as_obj(value).type == type;
 }
 
+/* Allocates an (Obj) on the heap and returns the pointer */
 fn Obj *allocate_object(usz size, ObjType type)
 {
     Obj *object = (Obj *)memory::reallocate(null, 0, size);
@@ -75,27 +77,79 @@ fn Obj *allocate_object(usz size, ObjType type)
     return object;
 }
 
-fn ObjString *allocate_string(char *chars, int len) @private
+/* Allocates an (ObjString) on the heap and returns the pointer */
+fn ObjString *allocate_string(char *chars, int len, uint hash) @private
 {
     ObjString *string = allocate_obj(ObjString, ObjType.STRING);
     string.len = len;
+    string.hash = hash;
     string.chars = chars;
+    vm.strings.set(string, nil_val());
     return string;
 }
 
-fn ObjString *take_string(char *chars, int len)
+/*
+ * FNV-1a hashing algorithm for hashing an (ObjString).
+ *
+ * This exists here since the only keys usable in the (Table) are
+ * (ObjString)s. As a result, the hash is stored within the (ObjString)
+ * directly to make it easier to intern said (ObjString).
+*/
+fn uint hash_string(char *key, int len) @private
 {
-    return allocate_string(chars, len);
+    uint hash = 2166136261u;
+    for (int i = 0; i < len; i++)
+    {
+        hash ^= (char)key[i];
+        hash *= 16777619;
+    }
+
+    return hash;
 }
 
+/*
+ * Takes ownership of and returns a freshly allocated (ObjString) populated
+ * with the provided [chars].
+ *
+ * It also creates a fresh hash for that new (ObjString).
+*/
+fn ObjString *take_string(char *chars, int len)
+{
+    uint hash = hash_string(chars, len);
+
+    ObjString *interned = vm.strings.find_string(chars, len, hash);
+    if (interned != null)
+    {
+        memory::free_array(char, chars, len + 1);
+        return interned;
+    }
+
+    return allocate_string(chars, len, hash);
+}
+
+/* Makes a copy of the [chars] passed into it */
 fn ObjString *copy_string(char *chars, int len)
 {
+    uint hash = hash_string(chars, len);
+
+    ObjString *interned = vm.strings.find_string(chars, len, hash);
+    if (interned != null) return interned;
+
     char *heap_chars = memory::allocate(char, len + 1);
     mem::copy(heap_chars, chars, len);
     heap_chars[len] = '\0';
-    return allocate_string(heap_chars, len);
+
+    return allocate_string(heap_chars, len, hash);
 }
 
+/*
+ * Same as the one for values, with the exception of [stream] not being a
+ * default argument. The reason for this is that this function is only ever called
+ * from 'value::print()', which is guaranteed to provide the [stream].
+ *
+ * All (Obj)s in lox are also (Value)s, which is why it takes a value and is only
+ * ever called from the (Value)s print function.
+*/
 fn void print(Value value, OutStream stream)
 {
     switch (obj_type(value))

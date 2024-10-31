@@ -4,6 +4,7 @@ import lox::common;
 import lox::compiler;
 import lox::memory;
 import lox::object;
+import lox::table;
 import lox::value;
 import std::io @norecurse;
 
@@ -28,6 +29,7 @@ struct Vm
     char *ip;
     Value[STACK_MAX] stack;
     Value *stack_top;
+    Table strings;
     Obj *objects;
 }
 
@@ -38,12 +40,14 @@ Vm vm @builtin;
 fn void init()
 {
     reset_stack();
+    vm.strings.init();
 }
 
 /* Free's the heap-allocated data of the global [vm] */
 fn void free()
 {
-
+    vm.strings.free();
+    memory::free_objects();
 }
 
 /* Reset the [stack_top] pointer to the beginning of the [stack] */
