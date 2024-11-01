@@ -74,6 +74,10 @@ fn int Chunk.disassemble_instruction(&self, int offset)
             return simple_instruction("MULTIPLY", offset);
         case DIVIDE:
             return simple_instruction("DIVIDE", offset);
+        case POP:
+            return simple_instruction("POP", offset);
+        case PRINT:
+            return simple_instruction("PRINT", offset);
         case RETURN:
             return simple_instruction("RETURN", offset);
     }

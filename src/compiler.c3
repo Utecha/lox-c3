@@ -84,14 +84,27 @@ fn void advance() @private
     }
 }
 
+fn bool check(TokenType type) @private
+{
+    return parser.current.type == type;
+}
+
+fn bool match(TokenType type) @private
+{
+    if (!check(type)) return false;
+    advance();
+    return true;
+}
+
 fn void consume(TokenType type, String message) @private
 {
-    if (parser.current.type == type)
-    {
-        advance();
-        return;
-    }
+    // if (check(type))
+    // {
+    //     advance();
+    //     return;
+    // }
 
+    if (match(type)) return;
     error_at_current(message);
 }
 
@@ -309,6 +322,70 @@ fn void expression() @private
     parse_precedence(ASSIGNMENT);
 }
 
+fn void expression_statement() @private
+{
+    expression();
+    consume(SEMICOLON, "Expected ';' after expression");
+    emit_opcode(POP);
+}
+
+fn void print_statement() @private
+{
+    expression();
+    consume(SEMICOLON, "Expected ';' after [print] value");
+    emit_opcode(PRINT);
+}
+
+fn void synchronize() @private
+{
+    parser.panic_mode = false;
+
+    while (parser.current.type != EOF)
+    {
+        if (parser.previous.type == SEMICOLON) return;
+        switch (parser.current.type)
+        {
+            case CLASS:
+            case FOR:
+            case FUN:
+            case IF:
+            case PRINT:
+            case RETURN:
+            case VAR:
+            case WHILE:
+                return;
+            default:
+                ; // Do nothing
+        }
+
+        advance();
+    }
+}
+
+fn void statement() @private
+{
+    switch
+    {
+        case match(PRINT):
+            print_statement();
+        default:
+            expression_statement();
+    }
+}
+
+fn void declaration() @private
+{
+    switch
+    {
+        // case match(VAR):
+        //     variable_declaration();
+        default:
+            statement();
+    }
+
+    if (parser.panic_mode) synchronize();
+}
+
 fn bool compile(char *source, Chunk *chunk)
 {
     lexer::init(source);
@@ -318,8 +395,8 @@ fn bool compile(char *source, Chunk *chunk)
     parser.panic_mode = false;
 
     advance();
-    expression();
-    consume(EOF, "Expected end of expression");
+    while (!match(EOF))
+        { declaration(); }
     end_compiler();
 
     return !parser.had_error;

@@ -29,6 +29,8 @@ enum OpCode : char
     SUBTRACT,
     MULTIPLY,
     DIVIDE,
+    POP,
+    PRINT,
     RETURN,
 }
 

@@ -171,7 +171,6 @@ fn void! binary_op(char op) @local
             }
             push(number_val(a / b));
         }
-        // case '+':   push(number_val(a + b));
         case '-':   push(number_val(a - b));
         case '*':   push(number_val(a * b));
         case '>':   push(bool_val(a > b));
@@ -258,9 +257,12 @@ fn void! run_interpreter() @private
                 binary_op('*')!;
             case DIVIDE:
                 binary_op('/')!;
-            case RETURN:
+            case POP:
+                pop();
+            case PRINT:
                 value::print(pop());
                 io::printn();
+            case RETURN:
                 return;
         }
     }
