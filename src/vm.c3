@@ -1,6 +1,7 @@
 module lox::vm;
-import lox::common;
 import lox::chunk;
+import lox::common;
+import lox::compiler;
 import lox::value;
 import std::io @norecurse;
 
@@ -63,13 +64,11 @@ fn void free()
     Returns a void optional. This means that the actual return value is void. In the event
     of an error, it returns the optional result (also known as an excuse).
 
-    @param [inout] chunk "The compiled chunk to execute"
+    @param [in] source "The source code to compile and execute"
 *>
-fn void! interpret(Chunk *chunk)
+fn void! interpret(char *source)
 {
-    vm.chunk = chunk;
-    vm.ip = vm.chunk.code;
-    run_interpreter()!;
+    compiler::compile(source);
 }
 
 <*

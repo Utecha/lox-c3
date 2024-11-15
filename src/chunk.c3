@@ -209,7 +209,7 @@ fn int Chunk.get_line(&self, int offset)
 }
 
 //===----------------------------------------------------------------------===//
-module lox::chunk @if($feature(DEBUG));
+module lox::chunk @if($feature(DEBUG) &&& (DUMP_CHUNK ||| TRACE_INSTRUCTIONS));
 import lox::common;
 import lox::value;
 import std::io @norecurse;
@@ -225,7 +225,7 @@ import std::io @norecurse;
     @param name "A name for the chunk being disassembled"
     @require self != null
 *>
-fn void Chunk.disassemble(&self, String name) @if(DUMP_CHUNK ||| TRACE_INSTRUCTIONS)
+fn void Chunk.disassemble(&self, String name)
 {
     io::eprintfn("=== %s ===", name);
 
@@ -240,7 +240,7 @@ fn void Chunk.disassemble(&self, String name) @if(DUMP_CHUNK ||| TRACE_INSTRUCTI
     @param offset "The index of the instruction to disassemble"
     @require self != null
 *>
-fn int Chunk.disassemble_instruction(&self, int offset) @if(DUMP_CHUNK ||| TRACE_INSTRUCTIONS)
+fn int Chunk.disassemble_instruction(&self, int offset)
 {
     io::eprintf("%04d ", offset);
 

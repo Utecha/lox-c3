@@ -11,7 +11,7 @@
   "targets": {
     "lox": {
       "type": "executable",
-      "features": [ "DEBUG" ]
+      "features": []
     },
   },
   "cpu": "generic",
