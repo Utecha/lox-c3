@@ -1,8 +1,9 @@
 # Release Notes -- Pre-Version 0.1.0
 
-- Build [0.0.1](#release-001)
-- Build [0.0.2](#release-002)
-- Build [0.0.3](#release-003)
+- [Build 0.0.1](#build-0-0-1)
+- [Build 0.0.2](#build-0-0-2)
+- [Build 0.0.3](#build-0-0-3)
+- [Build 0.0.4](#build-0-0-4)
 
 ## Build 0.0.1
 
@@ -48,3 +49,15 @@ NOTE: There is no difference here between 'scanner' and 'lexer' other than the w
 Keywords are matched by taking advantage of C3's ```String``` type, which can be directly compared with something like the ```==``` operator (which is implicitly done by a switch statement).
 
 On that note, while the Lexer works with ```char *```, it generates tokens whose lexeme is of the type ```String```. That has a number of advantages including making it simpler to pass in to print functions (such as for error reporting), and having a built-in ```len``` property.
+
+## Build 0.0.4
+
+This build is in line with [Chapter 17](https://craftinginterpreters.com/compiling-expressions.html#top) of the book.
+
+- Added new tokens for ```?``` and ```:```.
+- Added the ternary operator (does not properly interpret yet, that comes next chapter with the introduction of 'falsiness').
+- Removed the ```@private``` attribute on ```Chunk.write()``` and removed all of the wrapper functions.
+- Replaced the above point with a couple of macros that simple convert back and forth between ```char``` and ```OpCode```.
+- Added separate ```error.c3``` module for the error reporting functions.
+
+At this point you have a functioning compilation pipeline, though the language is nothing more than a glorified calculator, capable of all of the basic operations (+, -, *, /, %).

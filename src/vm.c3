@@ -68,7 +68,17 @@ fn void free()
 *>
 fn void! interpret(char *source)
 {
-    compiler::compile(source);
+    Chunk chunk;
+    chunk.init();
+    defer chunk.free();
+
+    if (!compiler::compile(source, &chunk))
+        { return VMResult.COMPILE_ERROR?; }
+
+    vm.chunk = &chunk;
+    vm.ip = vm.chunk.code;
+
+    return run_interpreter()!;
 }
 
 <*
@@ -148,7 +158,7 @@ fn void! run_interpreter() @private
 {
     for (;;)
     {
-        $if $feature(DEBUG) && TRACE_INSTRUCTIONS:
+        $if $feature(DEBUG) &&& TRACE_INSTRUCTIONS:
             io::eprintf("        ");
             for (Value *slot = &vm.stack[0]; slot < vm.stack_top; slot++)
             {
@@ -168,6 +178,22 @@ fn void! run_interpreter() @private
             {
                 Value constant = read_constant();
                 push(constant);
+            }
+
+            case TERNARY:
+            {
+                // Value falsey = pop();
+                // Value truthy = pop();
+
+                // !is_falsey(pop()) ? push(truthy) : push(falsey);
+
+                /*
+                 * This is exactly what this does, at the start. For now, this is all it does,
+                 * until the machinery for falsiness is implemented (Chapter 18).
+                */
+                pop();
+                pop();
+                pop();
             }
 
             case NEGATE:

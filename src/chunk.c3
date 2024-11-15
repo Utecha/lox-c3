@@ -19,6 +19,7 @@ enum OpCode : char
     CONSTANT,
 
     /* Simple Instructions (1 byte) */
+    TERNARY,
     NEGATE,
     ADD,
     SUBTRACT,
@@ -32,14 +33,18 @@ enum OpCode : char
 //        Chunk
 //===----------------===//
 
-/* Structure representing compressed line information */
+<*
+    The structure representing compressed line information.
+*>
 struct Line
 {
     int number;
     int offset;
 }
 
-/* Structure representing a 'chunk' of Lox bytecode */
+<*
+    The structure representing a 'chunk' of Lox bytecode.
+*>
 struct Chunk
 {
     int capacity;
@@ -52,10 +57,9 @@ struct Chunk
 }
 
 <*
-    Initializes a new 'Chunk'.
+    Initializes a new (Chunk).
 
-    @param [inout] self "A reference to the chunk the method is called on"
-    @require self != null
+    @param [&inout] self "A reference to the chunk the method is called on"
 *>
 fn void Chunk.init(&self)
 {
@@ -69,10 +73,9 @@ fn void Chunk.init(&self)
 }
 
 <*
-    Free the memory of an exisiting 'Chunk'
+    Free the memory of an exisiting (Chunk).
 
-    @param [inout] self "A reference to the chunk the method is called on"
-    @require self != null
+    @param [&inout] self "A reference to the chunk the method is called on"
 *>
 fn void Chunk.free(&self)
 {
@@ -81,17 +84,14 @@ fn void Chunk.free(&self)
     self.init();
 }
 
-// NOTE: This is not used directly. Instead, wrappers for converting instructions
-// into bytes are used. They are defined directly below this function.
 <*
     Write a byte instruction to the bytecode array of a 'Chunk'.
 
-    @param [inout] self "A reference to the chunk the method is called on"
+    @param [&inout] self "A reference to the chunk the method is called on"
     @param byte "The byte to write to the chunks bytecode array"
     @param line "The corresponding line number the instruction appears on"
-    @require self != null
 *>
-fn void Chunk.write(&self, char byte, int line) @private
+fn void Chunk.write(&self, char byte, int line)
 {
     if (self.capacity < self.count + 1)
     {
@@ -117,45 +117,20 @@ fn void Chunk.write(&self, char byte, int line) @private
     self.count++;
 }
 
-/*
- * NOTE: I wrote these as 2 separate wrappers in order to directly handle the original
- * types. This has the benefit (mostly for OpCodes) of not having to qualify the value being
- * passed in. These means that, for example, you can just pass in 'RETURN' rather than having
- * to pass in 'OpCode.RETURN'.
-*/
+<*
+    Typecasts an (OpCode) to (char).
+*>
+macro to_byte(opcode) @builtin => (char)opcode;
 
 <*
-    Converts an 'OpCode' to a 'char' before passing it into 'Chunk.write()'.
-
-    @param [inout] self "A reference to the chunk the method is called on"
-    @param code "The OpCode instruction to write to the bytecode array"
-    @param line "The corresponding line number for the provided OpCode"
-    @require self != null
+    Typecasts a (char) to an (OpCode).
 *>
-fn void Chunk.write_opcode(&self, OpCode code, int line)
-{
-    self.write((char)code, line);
-}
-
-<*
-    Converts the index for a constant into a 'char' before
-    passing it into 'Chunk.write()'. This is usually not called alone, but immediately
-    after 'Chunk.write_opcode()'.
-
-    @param [inout] self "A reference to the chunk the method is called on"
-    @param index "The constant index to write to the bytecode array"
-    @param line "The corresponding line number for the provided constant index"
-    @require self != null
-*>
-fn void Chunk.write_index(&self, int index, int line)
-{
-    self.write((char)index, line);
-}
+macro to_opcode(byte) @builtin => (OpCode)byte;
 
 <*
     Add's a 'Value' to a chunks constants pool and returns the index.
 
-    @param [inout] self "A reference to the chunk the method is called on"
+    @param [&inout] self "A reference to the chunk the method is called on"
     @param value "The value to write to the constants pool"
 *>
 fn int Chunk.add_constant(&self, Value value)
@@ -165,27 +140,10 @@ fn int Chunk.add_constant(&self, Value value)
 }
 
 <*
-    Add's a 'Value' to a chunks constants pool and loads the proper instructions
-    into that chunks bytecode array, returning the index.
-
-    @param [inout] self "A reference to the chunk the method is called on"
-    @param value "The value to write to the constants pool"
-    @param line "The corresponding line number for the provided Value"
-*>
-fn int Chunk.write_constant(&self, Value value, int line)
-{
-    int index = self.add_constant(value);
-    self.write_opcode(CONSTANT, line);
-    self.write_index(index, line);
-    return index;
-}
-
-<*
     Binary-search algorithm for obtaining the a chunks line information.
 
-    @param [inout] self "A reference to the chunk the method is called on"
+    @param [&inout] self "A reference to the chunk the method is called on"
     @param offset "The index within the bytecode array corresponding to a line number"
-    @require self != null
 *>
 fn int Chunk.get_line(&self, int offset)
 {
@@ -221,9 +179,8 @@ import std::io @norecurse;
 <*
     Disassembles an entire bytecode 'Chunk'.
 
-    @param [inout] self "A reference to the chunk the method is called on"
+    @param [&inout] self "A reference to the chunk the method is called on"
     @param name "A name for the chunk being disassembled"
-    @require self != null
 *>
 fn void Chunk.disassemble(&self, String name)
 {
@@ -236,9 +193,8 @@ fn void Chunk.disassemble(&self, String name)
 <*
     Disassembles an individual instruction within a bytecode 'Chunk'.
 
-    @param [inout] self "A reference to the chunk the method is called on"
+    @param [&inout] self "A reference to the chunk the method is called on"
     @param offset "The index of the instruction to disassemble"
-    @require self != null
 *>
 fn int Chunk.disassemble_instruction(&self, int offset)
 {
@@ -276,7 +232,7 @@ fn int Chunk.disassemble_instruction(&self, int offset)
     Disassembles a constant (2 byte) instruction.
 
     @param name "The name of the instruction"
-    @param [inout] chunk "The chunk containing the instruction to disassemble"
+    @param [&in] chunk "The chunk containing the instruction to disassemble"
     @param offset "The index of the instruction in the bytecode array"
 *>
 fn int constant_instruction(String name, Chunk *chunk, int offset) @private

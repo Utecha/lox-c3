@@ -21,11 +21,14 @@ enum TokenType : int
     COMMA,
     DOT,
     SEMICOLON,
+    COLON,
+    QMARK,
 
     /* Logical (non-keyword) */
     NOT,
 
     /* Arithmetic - Factor */
+    MODULUS,
     SLASH,
     STAR,
 
@@ -143,6 +146,8 @@ fn Token get_next_token()
         case ',':   return make_token(TokenType.COMMA);
         case '.':   return make_token(TokenType.DOT);
         case ';':   return make_token(TokenType.SEMICOLON);
+        case ':':   return make_token(TokenType.COLON);
+        case '?':   return make_token(TokenType.QMARK);
         case '-':   return make_token(TokenType.MINUS);
         case '+':   return make_token(TokenType.PLUS);
         case '/':   return make_token(TokenType.SLASH);
