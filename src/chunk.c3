@@ -1,0 +1,303 @@
+module lox::chunk;
+import lox::memory;
+import lox::value;
+
+//===----------------===//
+//   Operation Codes
+//===----------------===//
+
+/*
+ * Enumerator of Operation Codes defined for the Lox VM.
+ *
+ * NOTE: Different instructions load different numbers of bytes.
+ * Comments within the enum will denote the instruction type as well
+ * as the number of bytes associated with each instruction.
+*/
+enum OpCode : char
+{
+    /* Constant Instructions (2 bytes) */
+    CONSTANT,
+
+    /* Simple Instructions (1 byte) */
+    NEGATE,
+    ADD,
+    SUBTRACT,
+    MULTIPLY,
+    DIVIDE,
+    MODULUS,
+    RETURN,
+}
+
+//===----------------===//
+//        Chunk
+//===----------------===//
+
+/* Structure representing compressed line information */
+struct Line
+{
+    int number;
+    int offset;
+}
+
+/* Structure representing a 'chunk' of Lox bytecode */
+struct Chunk
+{
+    int capacity;
+    int count;
+    char *code;
+    int line_capacity;
+    int line_count;
+    Line *lines;
+    ValueList constants;
+}
+
+<*
+    Initializes a new 'Chunk'.
+
+    @param [inout] self "A reference to the chunk the method is called on"
+    @require self != null
+*>
+fn void Chunk.init(&self)
+{
+    self.capacity = 0;
+    self.count = 0;
+    self.code = null;
+    self.line_capacity = 0;
+    self.line_count = 0;
+    self.lines = null;
+    self.constants.init();
+}
+
+<*
+    Free the memory of an exisiting 'Chunk'
+
+    @param [inout] self "A reference to the chunk the method is called on"
+    @require self != null
+*>
+fn void Chunk.free(&self)
+{
+    memory::free_array(Line, self.lines, self.line_capacity);
+    memory::free_array(char, self.code, self.capacity);
+    self.init();
+}
+
+// NOTE: This is not used directly. Instead, wrappers for converting instructions
+// into bytes are used. They are defined directly below this function.
+<*
+    Write a byte instruction to the bytecode array of a 'Chunk'.
+
+    @param [inout] self "A reference to the chunk the method is called on"
+    @param byte "The byte to write to the chunks bytecode array"
+    @param line "The corresponding line number the instruction appears on"
+    @require self != null
+*>
+fn void Chunk.write(&self, char byte, int line) @private
+{
+    if (self.capacity < self.count + 1)
+    {
+        int old_cap = self.capacity;
+        self.capacity = memory::grow_capacity(old_cap);
+        self.code = memory::grow_array(char, self.code, old_cap, self.capacity);
+    }
+
+    if (self.count == 0 || self.lines[self.line_count - 1].number != line)
+    {
+        if (self.line_capacity < self.line_count + 1)
+        {
+            int old_line_cap = self.line_capacity;
+            self.line_capacity = memory::grow_capacity(old_line_cap);
+            self.lines = memory::grow_array(Line, self.lines, old_line_cap, self.line_capacity);
+        }
+
+        self.lines[self.line_count] = { .number = line, .offset = self.count };
+        self.line_count++;
+    }
+
+    self.code[self.count] = byte;
+    self.count++;
+}
+
+/*
+ * NOTE: I wrote these as 2 separate wrappers in order to directly handle the original
+ * types. This has the benefit (mostly for OpCodes) of not having to qualify the value being
+ * passed in. These means that, for example, you can just pass in 'RETURN' rather than having
+ * to pass in 'OpCode.RETURN'.
+*/
+
+<*
+    Converts an 'OpCode' to a 'char' before passing it into 'Chunk.write()'.
+
+    @param [inout] self "A reference to the chunk the method is called on"
+    @param code "The OpCode instruction to write to the bytecode array"
+    @param line "The corresponding line number for the provided OpCode"
+    @require self != null
+*>
+fn void Chunk.write_opcode(&self, OpCode code, int line)
+{
+    self.write((char)code, line);
+}
+
+<*
+    Converts the index for a constant into a 'char' before
+    passing it into 'Chunk.write()'. This is usually not called alone, but immediately
+    after 'Chunk.write_opcode()'.
+
+    @param [inout] self "A reference to the chunk the method is called on"
+    @param index "The constant index to write to the bytecode array"
+    @param line "The corresponding line number for the provided constant index"
+    @require self != null
+*>
+fn void Chunk.write_index(&self, int index, int line)
+{
+    self.write((char)index, line);
+}
+
+<*
+    Add's a 'Value' to a chunks constants pool and returns the index.
+
+    @param [inout] self "A reference to the chunk the method is called on"
+    @param value "The value to write to the constants pool"
+*>
+fn int Chunk.add_constant(&self, Value value)
+{
+    self.constants.append(value);
+    return self.constants.count - 1;
+}
+
+<*
+    Add's a 'Value' to a chunks constants pool and loads the proper instructions
+    into that chunks bytecode array, returning the index.
+
+    @param [inout] self "A reference to the chunk the method is called on"
+    @param value "The value to write to the constants pool"
+    @param line "The corresponding line number for the provided Value"
+*>
+fn int Chunk.write_constant(&self, Value value, int line)
+{
+    int index = self.add_constant(value);
+    self.write_opcode(CONSTANT, line);
+    self.write_index(index, line);
+    return index;
+}
+
+<*
+    Binary-search algorithm for obtaining the a chunks line information.
+
+    @param [inout] self "A reference to the chunk the method is called on"
+    @param offset "The index within the bytecode array corresponding to a line number"
+    @require self != null
+*>
+fn int Chunk.get_line(&self, int offset)
+{
+    int start = 0;
+    int end = self.line_count;
+
+    while (start < end)
+    {
+        int mid = (start + end) / 2;
+        Line *line = &self.lines[mid];
+
+        if (offset < line.offset)
+            { end = mid; }
+        else if (mid == self.line_count - 1 || offset < self.lines[mid + 1].offset)
+            { return line.number; }
+        else
+            { start = mid + 1; }
+    }
+
+    return -1;
+}
+
+//===----------------------------------------------------------------------===//
+module lox::chunk @if($feature(DEBUG));
+import lox::common;
+import lox::value;
+import std::io @norecurse;
+
+//===----------------===//
+//     Disassembler
+//===----------------===//
+
+<*
+    Disassembles an entire bytecode 'Chunk'.
+
+    @param [inout] self "A reference to the chunk the method is called on"
+    @param name "A name for the chunk being disassembled"
+    @require self != null
+*>
+fn void Chunk.disassemble(&self, String name) @if(DUMP_CHUNK ||| TRACE_INSTRUCTIONS)
+{
+    io::eprintfn("=== %s ===", name);
+
+    for (int offset = 0; offset < self.count;)
+        { offset = self.disassemble_instruction(offset); }
+}
+
+<*
+    Disassembles an individual instruction within a bytecode 'Chunk'.
+
+    @param [inout] self "A reference to the chunk the method is called on"
+    @param offset "The index of the instruction to disassemble"
+    @require self != null
+*>
+fn int Chunk.disassemble_instruction(&self, int offset) @if(DUMP_CHUNK ||| TRACE_INSTRUCTIONS)
+{
+    io::eprintf("%04d ", offset);
+
+    int line = self.get_line(offset);
+    if (offset > 0 && line == self.get_line(offset - 1))
+        { io::eprintf("   | "); }
+    else
+        { io::eprintf("%4d ", line); }
+
+    OpCode instruction = (OpCode)self.code[offset];
+    switch (instruction)
+    {
+        case CONSTANT:
+            return constant_instruction("CONSTANT", self, offset);
+        case NEGATE:
+            return simple_instruction("NEGATE", offset);
+        case ADD:
+            return simple_instruction("ADD", offset);
+        case SUBTRACT:
+            return simple_instruction("SUBTRACT", offset);
+        case MULTIPLY:
+            return simple_instruction("MULTIPLY", offset);
+        case DIVIDE:
+            return simple_instruction("DIVIDE", offset);
+        case MODULUS:
+            return simple_instruction("MODULUS", offset);
+        case RETURN:
+            return simple_instruction("RETURN", offset);
+    }
+}
+
+<*
+    Disassembles a constant (2 byte) instruction.
+
+    @param name "The name of the instruction"
+    @param [inout] chunk "The chunk containing the instruction to disassemble"
+    @param offset "The index of the instruction in the bytecode array"
+*>
+fn int constant_instruction(String name, Chunk *chunk, int offset) @private
+{
+    int index = chunk.code[offset + 1];
+
+    io::eprintf("%-16s %4d '", name, index);
+    value::print(chunk.constants.values[index], io::stderr());
+    io::eprintfn("'");
+
+    return offset + 2;
+}
+
+<*
+    Disassembles a simple (1 byte) instruction.
+
+    @param name "The name of the instruction"
+    @param offset "The index of the instruction in the bytecode array"
+*>
+fn int simple_instruction(String name, int offset) @private
+{
+    io::eprintfn("%s", name);
+    return offset + 1;
+}
