@@ -96,6 +96,7 @@ struct ObjString
     Obj obj;
     int length;
     char *chars;
+    uint hash;
 }
 
 fn Obj *allocate_object(usz size, ObjType type)
@@ -126,12 +127,26 @@ macro allocate_obj($Type, obj_type) @local
     @param [in] chars "The characters to initialize the ObjString with"
     @param len "The length of the character array of the ObjString"
 *>
-fn ObjString *allocate_string(char *chars, int len) @private
+fn ObjString *allocate_string(char *chars, int len, uint hash) @private
 {
     ObjString *string = allocate_obj(ObjString, ObjType.STRING);
     string.length = len;
     string.chars = chars;
+    string.hash = hash;
+    vm.strings.set(string, nil_val());
     return string;
+}
+
+fn uint hash_string(char *key, int len) @local
+{
+    uint hash = 2166136261u;
+    for (int i = 0; i < len; i++)
+    {
+        hash ^= (char)key[i];
+        hash *= 16777619;
+    }
+
+    return hash;
 }
 
 <*
@@ -148,10 +163,15 @@ fn ObjString *allocate_string(char *chars, int len) @private
 *>
 fn ObjString *copy_string(char* chars, int len)
 {
+    uint hash = hash_string(chars, len);
+
+    ObjString *interned = vm.strings.find_string(chars, len, hash);
+    if (interned != null) return interned;
+
     char *heap_chars = memory::allocate(char, len + 1);
     mem::copy(heap_chars, chars, len);
     heap_chars[len] = '\0';
-    return allocate_string(heap_chars, len);
+    return allocate_string(heap_chars, len, hash);
 }
 
 <*
@@ -163,7 +183,16 @@ fn ObjString *copy_string(char* chars, int len)
 *>
 fn ObjString *take_string(char *chars, int len)
 {
-    return allocate_string(chars, len);
+    uint hash = hash_string(chars, len);
+
+    ObjString *interned = vm.strings.find_string(chars, len, hash);
+    if (interned != null)
+    {
+        memory::free_array(char, chars, len + 1);
+        return interned;
+    }
+
+    return allocate_string(chars, len, hash);
 }
 
 <*

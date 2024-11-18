@@ -5,6 +5,7 @@ import lox::compiler;
 import lox::error;
 import lox::memory;
 import lox::object;
+import lox::table;
 import lox::value;
 import std::io @norecurse;
 
@@ -29,6 +30,7 @@ struct LoxVM
     char *ip;
     Value[STACK_MAX] stack;
     Value *stack_top;
+    Table strings;
     Obj *objects;
 }
 
@@ -52,6 +54,7 @@ fn void init()
 {
     reset_stack();
 
+    vm.strings.init();
     vm.objects = null;
 }
 
@@ -60,6 +63,7 @@ fn void init()
 *>
 fn void free()
 {
+    vm.strings.free();
     memory::free_objects();
 }
 

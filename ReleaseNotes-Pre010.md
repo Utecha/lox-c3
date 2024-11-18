@@ -5,6 +5,8 @@
 - [Build 0.0.3](#build-0-0-3)
 - [Build 0.0.4](#build-0-0-4)
 - [Build 0.0.45](#build-0-0-45)
+- [Build 0.0.5](#build-0-0-5)
+- [Build 0.0.55](#build-0-0-55)
 
 ## Build 0-0-1
 
@@ -91,3 +93,9 @@ some of the machinery I added to safely convert from one to the other was unnece
 check at the start of the VM's ```interpret()``` function for the source being passed in as 'null'.
 
 This chapter adds objects, and the first object of which is the string type. All Objects in Lox are Values (but not all Values are Objects). Examples of Objects include strings, functions, classes, instances, etc (most of which comes later).
+
+## Build 0.0.55
+
+This build is in line with [Chapter 20](https://craftinginterpreters.com/hash-tables.html#top) of the book.
+
+Implemented the backend hash table for the language. Strings are now interned and as a result, comparison equality of strings is faster.

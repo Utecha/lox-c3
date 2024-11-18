@@ -173,13 +173,7 @@ fn bool equal(Value a, Value b)
         case BOOL:      return as_bool(a) == as_bool(b);
         case NIL:       return true;
         case NUMBER:    return as_number(a) == as_number(b);
-        case OBJ:
-        {
-            ObjString *a_string = as_string(a);
-            ObjString *b_string = as_string(b);
-
-            return mem::equals(a_string.chars, b_string.chars);
-        }
+        case OBJ:       return as_obj(a) == as_obj(b);
         default:        return false; // Unreachable
     }
 }
