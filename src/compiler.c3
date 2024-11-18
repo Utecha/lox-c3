@@ -3,6 +3,7 @@ import lox::chunk;
 import lox::common;
 import lox::error;
 import lox::lexer;
+import lox::object;
 import lox::value;
 
 //===----------------===//
@@ -86,7 +87,7 @@ ParseRule[*] rules = {
     [TokenType.EQUAL]       = { null,       null,       Precedence.NONE },
     [TokenType.IDENTIFIER]  = { null,       null,       Precedence.NONE },
     [TokenType.NUMBER]      = { &number,    null,       Precedence.NONE },
-    [TokenType.STRING]      = { null,       null,       Precedence.NONE },
+    [TokenType.STRING]      = { &string,    null,       Precedence.NONE },
     [TokenType.AND]         = { null,       null,       Precedence.NONE },
     [TokenType.CLASS]       = { null,       null,       Precedence.NONE },
     [TokenType.ELSE]        = { null,       null,       Precedence.NONE },
@@ -305,7 +306,7 @@ fn void grouping() @private
 }
 
 <*
-    Compiles a number literal [value].
+    Compiles a number literal.
 *>
 fn void number() @private
 {
@@ -313,6 +314,19 @@ fn void number() @private
     if (catch value) return;
 
     emit_constant(number_val(value));
+}
+
+<*
+    Compiles a string literal.
+*>
+fn void string() @private
+{
+    emit_constant(
+        obj_val(object::copy_string(
+            parser.previous.lexeme[1..],
+            parser.previous.lexeme.len - 2
+        ))
+    );
 }
 
 <*

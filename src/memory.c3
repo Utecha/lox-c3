@@ -1,4 +1,6 @@
 module lox::memory;
+import lox::object;
+import lox::vm;
 import std::thread;
 
 /*
@@ -12,6 +14,17 @@ import std::thread;
 //===----------------===//
 //    Memory Macros
 //===----------------===//
+
+<*
+    Allocates an array of ($Type) on the heap.
+
+    @param $Type "The type of the array to allocate"
+    @param count "The size of the array to allocate"
+*>
+macro allocate($Type, count)
+{
+    return ($Type *)reallocate(null, 0, $Type.sizeof * count);
+}
 
 <*
     Grows the capacity value of a dynamic array by a factor of 2.
@@ -50,6 +63,17 @@ macro free_array($Type, ptr, old_size)
 }
 
 <*
+    Free's an individual heap-allocated pointer (usually an Obj *).
+
+    @param $Type "The type of the pointer"
+    @param ptr "The pointer to free"
+*>
+macro free_ptr($Type, ptr)
+{
+    reallocate(ptr, $Type.sizeof, 0);
+}
+
+<*
     The main allocator function used by Lox. Later, this will trigger the GC.
 
     If [new_size] == 0, it frees the pointer and returns null. Otherwise, it calls realloc
@@ -72,4 +96,34 @@ fn void *reallocate(void *ptr, usz old_size, usz new_size)
     if (result == null) thread::exit(1);
 
     return result;
+}
+
+<*
+    Free's the memory for an (Obj *).
+
+    @param [inout] object "The object to be freed"
+*>
+fn void free_object(Obj *object) @local
+{
+    switch (object.type)
+    {
+        case STRING:
+            ObjString *string = (ObjString *)object;
+            free_array(char, string.chars, string.length + 1);
+            free_ptr(ObjString, object);
+    }
+}
+
+<*
+    Walks the linked-list of objects held by the VM and frees each node.
+*>
+fn void free_objects()
+{
+    Obj *object = vm.objects;
+    while (object != null)
+    {
+        Obj *next = object.next;
+        free_object(object);
+        object = next;
+    }
 }

@@ -2,27 +2,6 @@ module lox;
 import std::io;
 
 <*
-    Ripped from 'read_file()', this simply allocates a (char *) and loads it
-    with the characters from a separate string.
-
-    NOTE: This DOES free the slice passed in for the user, but the user is expected
-    to free the returned (char *).
-
-    @param slice "The character slice to load into the char *"
-*>
-fn char *! string_to_charptr(char[] slice) @local
-{
-    char *string = (char *)malloc(slice.len + 1);
-    for (usz i = 0; i < slice.len; i++)
-        { string[i] = slice[i]; }
-
-    string[slice.len] = '\0';
-    free(slice);
-
-    return string;
-}
-
-<*
     Read's in a *single* Lox source file into a (char *) buffer.
 
     The reason for this returning a (char *) and not a (String) is for the simple
@@ -42,7 +21,7 @@ fn char *! read_file(String filepath) @local
         return excuse?;
     }
 
-    return string_to_charptr(slice)!;
+    return slice;
 }
 
 <*
@@ -69,28 +48,15 @@ fn void repl() @local
     {
         io::print(">>> ");
 
-        String! line = io::readline();
-        if (catch line)
-        {
-            io::print("\r");
-            return;
-        }
-
-        char *! source = string_to_charptr(line);
+        String! source = io::treadline();
         if (catch source)
         {
             io::print("\r");
             return;
         }
 
-        if (!source) continue;
         if (catch vm::interpret(source))
-        {
-            free(source);
-            continue;
-        }
-
-        free(source);
+            { continue; }
     }
 }
 

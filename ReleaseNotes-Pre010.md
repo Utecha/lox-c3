@@ -78,3 +78,16 @@ I did add another flag to ```common.c3``` for enabling/disabling the optimizatio
 There may be a time when this is condensed into one flag called 'OPTIMIZE_STACK' or something of that nature. It would be a generic flag that enables/disables all stack-based optimizations.
 
 Not related to the project necessarily, I modified this file to change the version numbers from "0.0.1" to "0-0-1", as an example. This is in an effort to (hopefully) get the index links at the top to actually *work*. According to my markdown linter and preview, it does indeed fix the problem.
+
+## Build 0-0-5
+
+This build is in line with [Chapter 19](https://craftinginterpreters.com/strings.html#top) of the book.
+
+- Added doc comments to the few places where I forgot them.
+- Re-fixed the null-pointer dereference when entering an empty line into the REPL (see below).
+
+Apparently in one of the recent revisions of C3, the ```char[]``` (also known as a character slice) was made to be able to implicitly cast into a ```char *```. As a result,
+some of the machinery I added to safely convert from one to the other was unnecessary. I have removed that code, and the fix for the null-pointer dereference is now a simple
+check at the start of the VM's ```interpret()``` function for the source being passed in as 'null'.
+
+This chapter adds objects, and the first object of which is the string type. All Objects in Lox are Values (but not all Values are Objects). Examples of Objects include strings, functions, classes, instances, etc (most of which comes later).

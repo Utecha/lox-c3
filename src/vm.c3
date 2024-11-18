@@ -3,6 +3,8 @@ import lox::chunk;
 import lox::common;
 import lox::compiler;
 import lox::error;
+import lox::memory;
+import lox::object;
 import lox::value;
 import std::io @norecurse;
 
@@ -10,26 +12,27 @@ import std::io @norecurse;
 // Lox Virtual Machine
 //===----------------===//
 
-/* Maximum size of the VM's 'Value' stack before an overflow would occur */
+<* Maximum size of the VM's 'Value' stack before an overflow would occur *>
 const uint STACK_MAX = 256;
 
-/* Fault values returned by the VM under different error conditions (compiler, runtime) */
+<* Fault values returned by the VM under different error conditions (compiler, runtime) *>
 fault VMResult
 {
     COMPILE_ERROR,
     RUNTIME_ERROR
 }
 
-/* Structure representing the Lox Virtual Machine */
+<* Structure representing the Lox Virtual Machine *>
 struct LoxVM
 {
     Chunk *chunk;
     char *ip;
     Value[STACK_MAX] stack;
     Value *stack_top;
+    Obj *objects;
 }
 
-/* Global Lox VM */
+<* Global Lox VM *>
 LoxVM vm @builtin;
 
 <*
@@ -48,6 +51,8 @@ fn void reset_stack() @private
 fn void init()
 {
     reset_stack();
+
+    vm.objects = null;
 }
 
 <*
@@ -55,7 +60,7 @@ fn void init()
 *>
 fn void free()
 {
-
+    memory::free_objects();
 }
 
 <*
@@ -69,6 +74,8 @@ fn void free()
 *>
 fn void! interpret(char *source)
 {
+    if (source == null) return;
+
     Chunk chunk;
     chunk.init();
     defer chunk.free();
@@ -104,14 +111,48 @@ fn Value pop()
     return *vm.stack_top;
 }
 
+<*
+    Returns the (Value) found on the VM's stack at a given distance
+    without popping values off of the stack.
+
+    @param distance "How far back into the stack to view"
+*>
 fn Value peek(int distance) @local
 {
     return *(vm.stack_top - 1 - distance);
 }
 
+<*
+    Returns 'true' if the provided [value] is considered 'falsey'. Otherwise,
+    it returns 'false'.
+
+    'Falsey' in Lox is similar to that of Ruby. 'nil' and 'false' are falsey
+    values, while every other value is 'truthy'.
+
+    @param value "The value to check for falsiness"
+*>
 fn bool is_falsey(Value value) @local
 {
     return is_nil(value) || (is_bool(value) && !as_bool(value));
+}
+
+<*
+    Concatenates two (ObjString)s on the stack, taking ownership of the
+    characters and returning a newly combined (ObjString).
+*>
+fn void concatenate() @local
+{
+    ObjString *b = as_string(pop());
+    ObjString *a = as_string(pop());
+
+    int len = a.length + b.length;
+    char *chars = memory::allocate(char, len + 1);
+    mem::copy(chars, a.chars, a.length);
+    mem::copy(chars + a.length, b.chars, b.length);
+    chars[len] = '\0';
+
+    ObjString *result = object::take_string(chars, len);
+    push(obj_val(result));
 }
 
 <*
@@ -154,7 +195,6 @@ macro binary_op(op) @local
 
     switch (op)
     {
-        case '+':   push(number_val(a + b));
         case '-':   push(number_val(a - b));
         case '*':   push(number_val(a * b));
         case '/':   push(number_val(a / b));
@@ -239,7 +279,25 @@ fn void! run_interpreter() @private
                     push(number_val(-as_number(pop())));
                 $endif
             }
-            case ADD:       binary_op('+')!;
+            case ADD:
+            {
+                if (is_string(peek(0)) && is_string(peek(1)))
+                {
+                    concatenate();
+                }
+                else if (is_number(peek(0)) && is_number(peek(1)))
+                {
+                    double b = as_number(pop());
+                    double a = as_number(pop());
+
+                    push(number_val(a + b));
+                }
+                else
+                {
+                    error::runtime("Binary (addition) operands must be numbers or strings, but not both.");
+                    return VMResult.RUNTIME_ERROR?;
+                }
+            }
             case SUBTRACT:  binary_op('-')!;
             case MULTIPLY:  binary_op('*')!;
             case DIVIDE:    binary_op('/')!;

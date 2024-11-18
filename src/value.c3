@@ -1,5 +1,6 @@
 module lox::value;
 import lox::memory;
+import lox::object;
 import std::io @norecurse;
 
 //===----------------===//
@@ -14,6 +15,7 @@ enum ValueType : int
     BOOL,
     NIL,
     NUMBER,
+    OBJ,
 }
 
 <*
@@ -27,6 +29,7 @@ struct Value
     {
         bool boolean;
         double number;
+        Obj *obj;
     }
 }
 
@@ -58,6 +61,14 @@ macro nil_val() @builtin
 macro number_val(value) @builtin
     => Value { ValueType.NUMBER, { .number = value } };
 
+<*
+    Promote's a raw (Obj *) to a Lox (Value). All objects in Lox are also values.
+
+    @param object "The object to promote to a Value"
+*>
+macro obj_val(object) @builtin
+    => Value { ValueType.OBJ, { .obj = (Obj *)object } };
+
 /*
  * Macros to unwrap a Lox (Value) and return the underyling C3 value
 */
@@ -78,12 +89,20 @@ macro as_bool(value) @builtin
 macro as_number(value) @builtin
     => value.as.number;
 
+<*
+    Unwraps a Lox (Value) of type (OBJ) and returns the bare (Obj *).
+
+    @param value "The Value to unwrap"
+*>
+macro as_obj(value) @builtin
+    => value.as.obj;
+
 /*
  * Macros for type-checking Lox (Value)s
 */
 
 <*
-    Return's 'true' if the type of the [value] is (BOOL), otherwise
+    Returns 'true' if the type of the [value] is (BOOL), otherwise
     returns 'false'.
 
     @param value "The value whose type needs checking"
@@ -92,7 +111,7 @@ macro is_bool(value) @builtin
     => value.type == ValueType.BOOL;
 
 <*
-    Return's 'true' if the type of the [value] is (NIL), otherwise
+    Returns 'true' if the type of the [value] is (NIL), otherwise
     returns 'false'.
 
     @param value "The value whose type needs checking"
@@ -101,13 +120,22 @@ macro is_nil(value) @builtin
     => value.type == ValueType.NIL;
 
 <*
-    Return's 'true' if the type of the [value] is (NUMBER), otherwise
+    Returns 'true' if the type of the [value] is (NUMBER), otherwise
     returns 'false'.
 
     @param value "The value whose type needs checking"
 *>
 macro is_number(value) @builtin
     => value.type == ValueType.NUMBER;
+
+<*
+    Returns 'true' if the type of the [value] is (OBJ), otherwise
+    returns 'false'.
+
+    @param value "The value whose type needs checking"
+*>
+macro is_obj(value) @builtin
+    => value.type == ValueType.OBJ;
 
 <*
     Print function specific to Lox dynamic values.
@@ -125,12 +153,17 @@ fn void print(Value value, OutStream stream = io::stdout())
             (void) io::fprintf(stream, "nil");
         case NUMBER:
             (void) io::fprintf(stream, "%.32g", as_number(value));
+        case OBJ:
+            object::print(value, stream);
     }
 }
 
 <*
     Returns 'true' if the (Value)s [a] and [b] are equal. Otherwise, it
     returns 'false'.
+
+    @param a "The first, or 'a' value to compare"
+    @param b "The second, or 'b' value to compare"
 *>
 fn bool equal(Value a, Value b)
 {
@@ -140,6 +173,13 @@ fn bool equal(Value a, Value b)
         case BOOL:      return as_bool(a) == as_bool(b);
         case NIL:       return true;
         case NUMBER:    return as_number(a) == as_number(b);
+        case OBJ:
+        {
+            ObjString *a_string = as_string(a);
+            ObjString *b_string = as_string(b);
+
+            return mem::equals(a_string.chars, b_string.chars);
+        }
         default:        return false; // Unreachable
     }
 }
@@ -148,7 +188,9 @@ fn bool equal(Value a, Value b)
 //      ValueList
 //===----------------===//
 
-/* Structure representing a dynamic array of Lox values */
+<*
+    Structure representing a dynamic array of Lox values
+*>
 struct ValueList
 {
     int capacity;
