@@ -17,6 +17,9 @@ enum OpCode : char
 {
     /* Constant Instructions (2 bytes) */
     CONSTANT,
+    DEFINE_GLOBAL,
+    GET_GLOBAL,
+    SET_GLOBAL,
 
     /* Simple Instructions (1 byte) */
     NOT,
@@ -33,6 +36,8 @@ enum OpCode : char
     MULTIPLY,
     DIVIDE,
     MODULUS,
+    POP,
+    PRINT,
     RETURN,
 }
 
@@ -218,6 +223,12 @@ fn int Chunk.disassemble_instruction(&self, int offset)
     {
         case CONSTANT:
             return constant_instruction("CONSTANT", self, offset);
+        case DEFINE_GLOBAL:
+            return constant_instruction("DEFINE GLOBAL", self, offset);
+        case GET_GLOBAL:
+            return constant_instruction("GET GLOBAL", self, offset);
+        case SET_GLOBAL:
+            return constant_instruction("SET GLOBAL", self, offset);
         case NOT:
             return simple_instruction("NOT", offset);
         case NIL:
@@ -246,6 +257,10 @@ fn int Chunk.disassemble_instruction(&self, int offset)
             return simple_instruction("DIVIDE", offset);
         case MODULUS:
             return simple_instruction("MODULUS", offset);
+        case POP:
+            return simple_instruction("POP", offset);
+        case PRINT:
+            return simple_instruction("PRINT", offset);
         case RETURN:
             return simple_instruction("RETURN", offset);
     }

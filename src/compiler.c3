@@ -41,7 +41,7 @@ enum Precedence : int
 }
 
 <* Function pointer for a ParseFn *>
-def ParseFn = fn void ();
+def ParseFn = fn void (bool can_assign);
 
 <*
     The structure representing the rules in which the (Parser) follows, used for the
@@ -85,7 +85,7 @@ ParseRule[*] rules = {
     [TokenType.LT]          = { null,       &binary,    Precedence.COMPARISON },
     [TokenType.LTEQ]        = { null,       &binary,    Precedence.COMPARISON },
     [TokenType.EQUAL]       = { null,       null,       Precedence.NONE },
-    [TokenType.IDENTIFIER]  = { null,       null,       Precedence.NONE },
+    [TokenType.IDENTIFIER]  = { &variable,  null,       Precedence.NONE },
     [TokenType.NUMBER]      = { &number,    null,       Precedence.NONE },
     [TokenType.STRING]      = { &string,    null,       Precedence.NONE },
     [TokenType.AND]         = { null,       null,       Precedence.NONE },
@@ -154,6 +154,31 @@ fn void consume(TokenType type, String message) @private
     }
 
     error::@current(message);
+}
+
+<*
+    Returns 'true' if the current (Token) matches the given [type]. Otherwise, it returns
+    false.
+
+    @param type "The expected TokenType"
+*>
+fn bool check(TokenType type) @private
+{
+    return parser.current.type == type;
+}
+
+<*
+    Similar to consume, except this does not produce an error if the (Token) does not
+    match the given [type]. Return's 'true' if the (Token) DOES match.
+
+    @param type "The expected TokenType"
+*>
+fn bool match(TokenType type) @private
+{
+    if (!check(type)) return false;
+
+    advance();
+    return true;
 }
 
 //===----------------===//
@@ -248,7 +273,7 @@ fn void end_compiler() @private
 <*
     Compiles a conditional (also known as ternary) (?:) expression.
 *>
-fn void ternary() @private
+fn void ternary(bool can_assign) @private
 {
     parse_precedence(Precedence.TERNARY);
     consume(TokenType.COLON, "Expected ':' between ternary 'true' and 'false' branches");
@@ -259,7 +284,7 @@ fn void ternary() @private
 <*
     Compiles a binary expression.
 *>
-fn void binary() @private
+fn void binary(bool can_assign) @private
 {
     TokenType op_type = parser.previous.type;
     ParseRule *rule = get_rule(op_type);
@@ -285,7 +310,7 @@ fn void binary() @private
 <*
     Compiles a literal expression, such as 'nil', 'true', or 'false'.
 *>
-fn void literal() @private
+fn void literal(bool can_assign) @private
 {
     switch (parser.previous.type)
     {
@@ -299,7 +324,7 @@ fn void literal() @private
 <*
     Compiles a grouping '()' expression.
 *>
-fn void grouping() @private
+fn void grouping(bool can_assign) @private
 {
     expression();
     consume(TokenType.RPAREN, "Expected ')' after expression");
@@ -308,7 +333,7 @@ fn void grouping() @private
 <*
     Compiles a number literal.
 *>
-fn void number() @private
+fn void number(bool can_assign) @private
 {
     double! value = parser.previous.lexeme.to_double();
     if (catch value) return;
@@ -319,7 +344,7 @@ fn void number() @private
 <*
     Compiles a string literal.
 *>
-fn void string() @private
+fn void string(bool can_assign) @private
 {
     emit_constant(
         obj_val(object::copy_string(
@@ -332,7 +357,7 @@ fn void string() @private
 <*
     Compiles a unary (!, -) expression.
 *>
-fn void unary() @private
+fn void unary(bool can_assign) @private
 {
     TokenType op_type = parser.previous.type;
 
@@ -346,6 +371,42 @@ fn void unary() @private
     }
 }
 
+<*
+    Compiles a named variable.
+
+    @param name "The name of the variable to compile"
+*>
+fn void named_variable(Token name, bool can_assign) @private
+{
+    char arg = identifier_constant(&name);
+
+    // Assignment
+    if (can_assign && match(TokenType.EQUAL))
+    {
+        expression();
+        emit_bytes(to_byte(OpCode.SET_GLOBAL), arg);
+    }
+
+    // Get expression
+    else
+    {
+        emit_bytes(to_byte(OpCode.GET_GLOBAL), arg);
+    }
+}
+
+<*
+    Compiles a variable get expression.
+*>
+fn void variable(bool can_assign) @private
+{
+    named_variable(parser.previous, can_assign);
+}
+
+<*
+    Returns a pointer to the (ParseRule) associated with the given [type].
+
+    @param type "The type to get the parse rule for"
+*>
 fn ParseRule *get_rule(TokenType type) @private
 {
     return &rules[type];
@@ -354,6 +415,8 @@ fn ParseRule *get_rule(TokenType type) @private
 <*
     Parses tokens by [precedence] and calls the appropriate function
     to compile the instructions based on said [precedence].
+
+    @param precedence "The operator precedence to follow"
 *>
 fn void parse_precedence(Precedence precedence)
 {
@@ -366,14 +429,52 @@ fn void parse_precedence(Precedence precedence)
         return;
     }
 
-    prefix_rule();
+    bool can_assign = precedence <= Precedence.ASSIGNMENT;
+    prefix_rule(can_assign);
 
     while (precedence <= get_rule(parser.current.type).precedence)
     {
         advance();
         ParseFn infix_rule = get_rule(parser.previous.type).infix;
-        infix_rule();
+        infix_rule(can_assign);
     }
+
+    if (can_assign && match(TokenType.EQUAL))
+        { error::@previous("Invalid assignment target"); }
+}
+
+<*
+    Add's an identifier for a variable declaration to the compiling chunk's
+    constants pool.
+
+    @param [&in] name "The literal name of the identifier"
+*>
+fn char identifier_constant(Token *name)
+{
+    return make_constant(obj_val(object::copy_string(name.lexeme, name.lexeme.len)));
+}
+
+<*
+    Consume's the identifier for a variable declaration and returns the index resulting
+    from adding it to the constants pool.
+
+    @param message "The error message in the event the next token is *not* an IDENTIFIER"
+*>
+fn char parse_variable(String message)
+{
+    consume(IDENTIFIER, message);
+    return identifier_constant(&parser.previous);
+}
+
+<*
+    After a variable declaration has been fully parsed (successfully), this
+    function officially compiles the variable to signify it as being defined.
+
+    @param global "The index of the variable to compile"
+*>
+fn void define_variable(char global)
+{
+    emit_bytes(to_byte(OpCode.DEFINE_GLOBAL), global);
 }
 
 <*
@@ -382,6 +483,111 @@ fn void parse_precedence(Precedence precedence)
 fn void expression() @private
 {
     parse_precedence(Precedence.ASSIGNMENT);
+}
+
+<*
+    Compiles a statement. The simplest form of statement is the expression
+    statement, which is any expression ended by a ';'.
+*>
+fn void statement() @private
+{
+    switch
+    {
+        case match(TokenType.PRINT):
+            print_statement();
+        default:
+            expression_statement();
+    }
+}
+
+<*
+    Compiles an expression statement.
+
+    An expression statement is any expression followed by a ';'.
+*>
+fn void expression_statement() @private
+{
+    expression();
+    consume(SEMICOLON, "Expected ';' after expression");
+    emit_byte(to_byte(OpCode.POP));
+}
+
+<*
+    Compiles a 'print' statement.
+
+    In Lox, 'print' is a keyword and not a builtin function.
+*>
+fn void print_statement() @private
+{
+    expression();
+    consume(SEMICOLON, "Expected ';' after 'print' value");
+    emit_byte(to_byte(OpCode.PRINT));
+}
+
+<*
+    Compiles a declaration-type statement. Examples include variables,
+    functions, etc.
+*>
+fn void declaration() @private
+{
+    switch
+    {
+        case match(TokenType.VAR):
+            var_declaration();
+        default:
+            statement();
+    }
+
+    if (parser.panic_mode) synchronize();
+}
+
+<*
+    Compiles a variable declaration statement.
+*>
+fn void var_declaration() @private
+{
+    char global = parse_variable("Expected variable name");
+
+    if (match(TokenType.EQUAL))
+    {
+        expression();
+    }
+    else
+    {
+        emit_byte(to_byte(OpCode.NIL));
+    }
+
+    consume(SEMICOLON, "Expected ';' after variable declaration");
+
+    define_variable(global);
+}
+
+<*
+    Synchronizes the compiler in the event of a panic-causing error occurring.
+    This is triggered when 'parser.panic_mode' is set to 'true'.
+*>
+fn void synchronize() @private
+{
+    parser.panic_mode = false;
+
+    while (parser.current.type != TokenType.EOF)
+    {
+        if (parser.previous.type == TokenType.SEMICOLON) return;
+        switch (parser.current.type)
+        {
+            case TokenType.CLASS:
+            case TokenType.FOR:
+            case TokenType.FUN:
+            case TokenType.IF:
+            case TokenType.PRINT:
+            case TokenType.RETURN:
+            case TokenType.VAR:
+            case TokenType.WHILE:
+                return;
+            default:
+                ; // Do nothing
+        }
+    }
 }
 
 <*
@@ -404,8 +610,12 @@ fn bool compile(char *source, Chunk *chunk)
     parser.panic_mode = false;
 
     advance();
-    expression();
-    consume(TokenType.EOF, "Expected end of expression");
+
+    while (!match(TokenType.EOF))
+    {
+        declaration();
+    }
+
     end_compiler();
 
     return !parser.had_error;

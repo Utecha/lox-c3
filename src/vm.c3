@@ -30,6 +30,7 @@ struct LoxVM
     char *ip;
     Value[STACK_MAX] stack;
     Value *stack_top;
+    Table globals;
     Table strings;
     Obj *objects;
 }
@@ -54,6 +55,7 @@ fn void init()
 {
     reset_stack();
 
+    vm.globals.init();
     vm.strings.init();
     vm.objects = null;
 }
@@ -63,6 +65,7 @@ fn void init()
 *>
 fn void free()
 {
+    vm.globals.free();
     vm.strings.free();
     memory::free_objects();
 }
@@ -182,11 +185,24 @@ macro read_constant() @local
 }
 
 <*
+    Macro to read a string from the VM's chunk constants pool.
+
+    @require vm.chunk.constants.values != null
+    @ensure return.typeid == ObjString.typeid
+*>
+macro read_string() @local
+{
+    return as_string(read_constant());
+}
+
+<*
     Macro that pops the top 2 values from the stack, evaluates the
     binary operation on those values based on the provided [op], and
     pushes the result onto the [stack].
+
+    @param op "The operator to use for the binary operation, passed as a char"
 *>
-macro binary_op(op) @local
+macro binary_op(char op) @local
 {
     if (!is_number(peek(0)) || !is_number(peek(1)))
     {
@@ -240,6 +256,35 @@ fn void! run_interpreter() @private
             {
                 Value constant = read_constant();
                 push(constant);
+            }
+            case DEFINE_GLOBAL:
+            {
+                ObjString *name = read_string();
+                vm.globals.set(name, peek(0));
+                pop();
+            }
+            case GET_GLOBAL:
+            {
+                ObjString *name = read_string();
+                Value value;
+
+                if (!vm.globals.get(name, &value))
+                {
+                    error::runtime("Undefined variable '%s'", (ZString)name.chars);
+                    return VMResult.RUNTIME_ERROR?;
+                }
+
+                push(value);
+            }
+            case SET_GLOBAL:
+            {
+                ObjString *name = read_string();
+                if (vm.globals.set(name, peek(0)))
+                {
+                    vm.globals.delete(name);
+                    error::runtime("Undefined variable '%s'", (ZString)name.chars);
+                    return VMResult.RUNTIME_ERROR?;
+                }
             }
             case NIL:       push(nil_val());
             case TRUE:      push(bool_val(true));
@@ -306,12 +351,13 @@ fn void! run_interpreter() @private
             case MULTIPLY:  binary_op('*')!;
             case DIVIDE:    binary_op('/')!;
             case MODULUS:   binary_op('%')!;
-            case RETURN:
+            case POP:       pop();
+            case PRINT:
             {
                 value::print(pop());
                 io::printn();
-                return;
             }
+            case RETURN:    return;
         }
     }
 }
