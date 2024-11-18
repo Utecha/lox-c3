@@ -1,6 +1,11 @@
 module lox;
 import std::io;
 
+const int LOX_VERSION_MAJOR = 0;
+const int LOX_VERSION_MINOR = 0;
+const int LOX_VERSION_PATCH = 5;
+const String LOX_VERSION    = "%d.%d.%d";
+
 <*
     Read's in a *single* Lox source file into a (char *) buffer.
 
@@ -44,12 +49,24 @@ fn void! run_file(String filepath) @local
 *>
 fn void repl() @local
 {
+    io::printfn(
+        "[ Lox REPL ] Version %s",
+        string::tformat(LOX_VERSION, LOX_VERSION_MAJOR, LOX_VERSION_MINOR, LOX_VERSION_PATCH)
+    );
+    io::printn("Press Ctrl-D or enter 'exit' to exit.\n");
+
     for (;;)
     {
         io::print(">>> ");
 
         String! source = io::treadline();
         if (catch source)
+        {
+            io::print("\r");
+            return;
+        }
+
+        if (source == "exit")
         {
             io::print("\r");
             return;
