@@ -59,7 +59,7 @@ Parser parser @builtin;
 <*
     The (ParseRule)'s defined for the Lox language.
 *>
-ParseRule[43] rules = {
+ParseRule[*] rules = {
     [TokenType.ERROR]       = { null,       null,       Precedence.NONE },
     [TokenType.EOF]         = { null,       null,       Precedence.NONE },
     [TokenType.LPAREN]      = { &grouping,  null,       Precedence.NONE },
@@ -71,18 +71,18 @@ ParseRule[43] rules = {
     [TokenType.SEMICOLON]   = { null,       null,       Precedence.NONE },
     [TokenType.COLON]       = { null,       null,       Precedence.NONE },
     [TokenType.QMARK]       = { null,       &ternary,   Precedence.TERNARY },
-    [TokenType.NOT]         = { null,       null,       Precedence.NONE },
+    [TokenType.NOT]         = { &unary,     null,       Precedence.NONE },
     [TokenType.MODULUS]     = { null,       &binary,    Precedence.FACTOR },
     [TokenType.SLASH]       = { null,       &binary,    Precedence.FACTOR },
     [TokenType.STAR]        = { null,       &binary,    Precedence.FACTOR },
     [TokenType.MINUS]       = { &unary,     &binary,    Precedence.TERM },
     [TokenType.PLUS]        = { null,       &binary,    Precedence.TERM },
-    [TokenType.ISEQ]        = { null,       null,       Precedence.NONE },
-    [TokenType.NOTEQ]       = { null,       null,       Precedence.NONE },
-    [TokenType.GT]          = { null,       null,       Precedence.NONE },
-    [TokenType.GTEQ]        = { null,       null,       Precedence.NONE },
-    [TokenType.LT]          = { null,       null,       Precedence.NONE },
-    [TokenType.LTEQ]        = { null,       null,       Precedence.NONE },
+    [TokenType.ISEQ]        = { null,       &binary,    Precedence.EQUALITY },
+    [TokenType.NOTEQ]       = { null,       &binary,    Precedence.EQUALITY },
+    [TokenType.GT]          = { null,       &binary,    Precedence.COMPARISON },
+    [TokenType.GTEQ]        = { null,       &binary,    Precedence.COMPARISON },
+    [TokenType.LT]          = { null,       &binary,    Precedence.COMPARISON },
+    [TokenType.LTEQ]        = { null,       &binary,    Precedence.COMPARISON },
     [TokenType.EQUAL]       = { null,       null,       Precedence.NONE },
     [TokenType.IDENTIFIER]  = { null,       null,       Precedence.NONE },
     [TokenType.NUMBER]      = { &number,    null,       Precedence.NONE },
@@ -90,17 +90,17 @@ ParseRule[43] rules = {
     [TokenType.AND]         = { null,       null,       Precedence.NONE },
     [TokenType.CLASS]       = { null,       null,       Precedence.NONE },
     [TokenType.ELSE]        = { null,       null,       Precedence.NONE },
-    [TokenType.FALSE]       = { null,       null,       Precedence.NONE },
+    [TokenType.FALSE]       = { &literal,   null,       Precedence.NONE },
     [TokenType.FOR]         = { null,       null,       Precedence.NONE },
     [TokenType.FUN]         = { null,       null,       Precedence.NONE },
     [TokenType.IF]          = { null,       null,       Precedence.NONE },
-    [TokenType.NIL]         = { null,       null,       Precedence.NONE },
+    [TokenType.NIL]         = { &literal,   null,       Precedence.NONE },
     [TokenType.OR]          = { null,       null,       Precedence.NONE },
     [TokenType.PRINT]       = { null,       null,       Precedence.NONE },
     [TokenType.RETURN]      = { null,       null,       Precedence.NONE },
     [TokenType.SUPER]       = { null,       null,       Precedence.NONE },
     [TokenType.THIS]        = { null,       null,       Precedence.NONE },
-    [TokenType.TRUE]        = { null,       null,       Precedence.NONE },
+    [TokenType.TRUE]        = { &literal,   null,       Precedence.NONE },
     [TokenType.VAR]         = { null,       null,       Precedence.NONE },
     [TokenType.WHILE]       = { null,       null,       Precedence.NONE },
 };
@@ -266,12 +266,32 @@ fn void binary() @private
 
     switch (op_type)
     {
+        case ISEQ:      emit_byte(to_byte(OpCode.EQUAL));
+        case NOTEQ:     emit_bytes(to_byte(OpCode.EQUAL), to_byte(OpCode.NOT));
+        case GT:        emit_byte(to_byte(OpCode.GREATER));
+        case GTEQ:      emit_bytes(to_byte(OpCode.LESS), to_byte(OpCode.NOT));
+        case LT:        emit_byte(to_byte(OpCode.LESS));
+        case LTEQ:      emit_bytes(to_byte(OpCode.GREATER), to_byte(OpCode.NOT));
         case MINUS:     emit_byte(to_byte(OpCode.SUBTRACT));
         case PLUS:      emit_byte(to_byte(OpCode.ADD));
         case MODULUS:   emit_byte(to_byte(OpCode.MODULUS));
         case SLASH:     emit_byte(to_byte(OpCode.DIVIDE));
         case STAR:      emit_byte(to_byte(OpCode.MULTIPLY));
         default:        return; // Unreachable
+    }
+}
+
+<*
+    Compiles a literal expression, such as 'nil', 'true', or 'false'.
+*>
+fn void literal() @private
+{
+    switch (parser.previous.type)
+    {
+        case FALSE: emit_byte(to_byte(OpCode.FALSE));
+        case NIL:   emit_byte(to_byte(OpCode.NIL));
+        case TRUE:  emit_byte(to_byte(OpCode.TRUE));
+        default:    return; // Unreachable
     }
 }
 
@@ -292,7 +312,7 @@ fn void number() @private
     double! value = parser.previous.lexeme.to_double();
     if (catch value) return;
 
-    emit_constant(value);
+    emit_constant(number_val(value));
 }
 
 <*
@@ -307,6 +327,7 @@ fn void unary() @private
     switch (op_type)
     {
         case MINUS: emit_byte(to_byte(OpCode.NEGATE));
+        case NOT:   emit_byte(to_byte(OpCode.NOT));
         default:    return; // Unreachable
     }
 }
@@ -357,20 +378,21 @@ fn void expression() @private
 *>
 fn bool compile(char *source, Chunk *chunk)
 {
-    $if $feature(DEBUG) &&& DUMP_TOKENS:
+    $if $feature(DEBUG) &&& (DUMP_TOKENS == true):
         lexer::dump_tokens(source);
-    $else
-        lexer::init(source);
-        compiling = chunk;
-
-        parser.had_error = false;
-        parser.panic_mode = false;
-
-        advance();
-        expression();
-        consume(TokenType.EOF, "Expected end of expression");
-        end_compiler();
-
-        return !parser.had_error;
+        return true;
     $endif
+
+    lexer::init(source);
+    compiling = chunk;
+
+    parser.had_error = false;
+    parser.panic_mode = false;
+
+    advance();
+    expression();
+    consume(TokenType.EOF, "Expected end of expression");
+    end_compiler();
+
+    return !parser.had_error;
 }

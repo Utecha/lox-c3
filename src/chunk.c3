@@ -19,6 +19,13 @@ enum OpCode : char
     CONSTANT,
 
     /* Simple Instructions (1 byte) */
+    NOT,
+    NIL,
+    TRUE,
+    FALSE,
+    EQUAL,
+    GREATER,
+    LESS,
     TERNARY,
     NEGATE,
     ADD,
@@ -211,6 +218,22 @@ fn int Chunk.disassemble_instruction(&self, int offset)
     {
         case CONSTANT:
             return constant_instruction("CONSTANT", self, offset);
+        case NOT:
+            return simple_instruction("NOT", offset);
+        case NIL:
+            return simple_instruction("NIL", offset);
+        case TRUE:
+            return simple_instruction("TRUE", offset);
+        case FALSE:
+            return simple_instruction("FALSE", offset);
+        case EQUAL:
+            return simple_instruction("EQUAL", offset);
+        case GREATER:
+            return simple_instruction("GREATER", offset);
+        case LESS:
+            return simple_instruction("LESS", offset);
+        case TERNARY:
+            return simple_instruction("TERNARY", offset);
         case NEGATE:
             return simple_instruction("NEGATE", offset);
         case ADD:

@@ -4,12 +4,13 @@
 - [Build 0.0.2](#build-0-0-2)
 - [Build 0.0.3](#build-0-0-3)
 - [Build 0.0.4](#build-0-0-4)
+- [Build 0.0.45](#build-0-0-45)
 
-## Build 0.0.1
+## Build 0-0-1
 
 This build is in line with [Chapter 14](https://craftinginterpreters.com/chunks-of-bytecode.html#top) of the book.
 
-## Build 0.0.2
+## Build 0-0-2
 
 This build is in line with [Chapter 15](https://craftinginterpreters.com/a-virtual-machine.html#top) of the book.
 
@@ -20,7 +21,7 @@ In addition:
 - Implemented the optimized negation operator from the challenges section.
 - Added a misc. flag for enabling/disabling the optimized negation operator (for testing/learning purposes).
 
-## Build 0.0.3
+## Build 0-0-3
 
 This build is in line with [Chapter 16](https://craftinginterpreters.com/scanning-on-demand.html#top) of the book.
 
@@ -50,7 +51,7 @@ Keywords are matched by taking advantage of C3's ```String``` type, which can be
 
 On that note, while the Lexer works with ```char *```, it generates tokens whose lexeme is of the type ```String```. That has a number of advantages including making it simpler to pass in to print functions (such as for error reporting), and having a built-in ```len``` property.
 
-## Build 0.0.4
+## Build 0-0-4
 
 This build is in line with [Chapter 17](https://craftinginterpreters.com/compiling-expressions.html#top) of the book.
 
@@ -61,3 +62,19 @@ This build is in line with [Chapter 17](https://craftinginterpreters.com/compili
 - Added separate ```error.c3``` module for the error reporting functions.
 
 At this point you have a functioning compilation pipeline, though the language is nothing more than a glorified calculator, capable of all of the basic operations (+, -, *, /, %).
+
+## Build 0-0-45
+
+This build is in line with [Chapter 18](https://craftinginterpreters.com/types-of-values.html#top) of the book.
+
+- Fixed bug causing the compiler to still pass on to the VM despite having the 'DEBUG' feature AND 'DUMP_TOKENS' enabled.
+- Fixed a bug causing the VM to die to a null pointer dereference if you entered an empty line into the REPL.
+
+The only *real* difference between this and the original is the ternary operator. I implemented about 90% of it last chapter, however the machinery it needed was going to be
+added in this chapter with the introduction of dynamic typing and more types. It is now fully enabled and working.
+
+I did add another flag to ```common.c3``` for enabling/disabling the optimization on the NOT (!) operator. It is able to take on the exact same optimization that the NEGATE (-) operator does.
+
+There may be a time when this is condensed into one flag called 'OPTIMIZE_STACK' or something of that nature. It would be a generic flag that enables/disables all stack-based optimizations.
+
+Not related to the project necessarily, I modified this file to change the version numbers from "0.0.1" to "0-0-1", as an example. This is in an effort to (hopefully) get the index links at the top to actually *work*. According to my markdown linter and preview, it does indeed fix the problem.

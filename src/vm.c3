@@ -2,6 +2,7 @@ module lox::vm;
 import lox::chunk;
 import lox::common;
 import lox::compiler;
+import lox::error;
 import lox::value;
 import std::io @norecurse;
 
@@ -103,6 +104,16 @@ fn Value pop()
     return *vm.stack_top;
 }
 
+fn Value peek(int distance) @local
+{
+    return *(vm.stack_top - 1 - distance);
+}
+
+fn bool is_falsey(Value value) @local
+{
+    return is_nil(value) || (is_bool(value) && !as_bool(value));
+}
+
 <*
     Macro to read a byte from the VMs bytecode array.
 
@@ -132,20 +143,27 @@ macro read_constant() @local
 *>
 macro binary_op(op) @local
 {
-    Value b = pop();
-    Value a = pop();
+    if (!is_number(peek(0)) || !is_number(peek(1)))
+    {
+        error::runtime("Binary (non-addition) operands must be numbers");
+        return VMResult.RUNTIME_ERROR?;
+    }
+
+    double b = as_number(pop());
+    double a = as_number(pop());
 
     switch (op)
     {
-        case '+':   push(a + b);
-        case '-':   push(a - b);
-        case '*':   push(a * b);
-        case '/':   push(a / b);
-        case '%':   push(a % b);
+        case '+':   push(number_val(a + b));
+        case '-':   push(number_val(a - b));
+        case '*':   push(number_val(a * b));
+        case '/':   push(number_val(a / b));
+        case '%':   push(number_val(a % b));
+        case '>':   push(bool_val(a > b));
+        case '<':   push(bool_val(a < b));
         default:
         {
-            io::eprintfn("[ RUNTIME ] Error: Unknown binary operator");
-            reset_stack();
+            error::runtime("Unknown binary operator");
             return VMResult.RUNTIME_ERROR?;
         }
     }
@@ -179,38 +197,53 @@ fn void! run_interpreter() @private
                 Value constant = read_constant();
                 push(constant);
             }
-
-            case TERNARY:
+            case NIL:       push(nil_val());
+            case TRUE:      push(bool_val(true));
+            case FALSE:     push(bool_val(false));
+            case NOT:
             {
-                // Value falsey = pop();
-                // Value truthy = pop();
-
-                // !is_falsey(pop()) ? push(truthy) : push(falsey);
-
-                /*
-                 * This is exactly what this does, at the start. For now, this is all it does,
-                 * until the machinery for falsiness is implemented (Chapter 18).
-                */
-                pop();
-                pop();
-                pop();
-            }
-
-            case NEGATE:
-            {
-                $if OPTIMIZE_NEGATION:
-                    push(-*(--vm.stack_top));
+                /* (NOT) is able to receive the same optimization as (NEGATE) */
+                $if OPTIMIZE_NOT:
+                    push(bool_val(is_falsey(*(--vm.stack_top))));
                 $else
-                    push(-pop());
+                    push(bool_val(is_falsey(pop())));
                 $endif
             }
+            case EQUAL:
+            {
+                Value b = pop();
+                Value a = pop();
 
+                push(bool_val(value::equal(a, b)));
+            }
+            case GREATER:   binary_op('>')!;
+            case LESS:      binary_op('<')!;
+            case TERNARY:
+            {
+                Value falsey = pop();
+                Value truthy = pop();
+
+                !is_falsey(pop()) ? push(truthy) : push(falsey);
+            }
+            case NEGATE:
+            {
+                if (!is_number(peek(0)))
+                {
+                    error::runtime("Unary operand must be a number");
+                    return VMResult.RUNTIME_ERROR?;
+                }
+
+                $if OPTIMIZE_NEGATION:
+                    push(number_val(-as_number(*(--vm.stack_top))));
+                $else
+                    push(number_val(-as_number(pop())));
+                $endif
+            }
             case ADD:       binary_op('+')!;
             case SUBTRACT:  binary_op('-')!;
             case MULTIPLY:  binary_op('*')!;
             case DIVIDE:    binary_op('/')!;
             case MODULUS:   binary_op('%')!;
-
             case RETURN:
             {
                 value::print(pop());

@@ -1,7 +1,7 @@
 module lox::error;
 import lox::compiler;
 import lox::lexer;
-import lox::vm;
+import lox::vm @public;
 import std::io @norecurse;
 
 //===----------------------===//
@@ -58,4 +58,19 @@ macro @previous(String message)
 //   Runtime Error Reporting
 //===----------------------===//
 
+<*
+    Reports an error at runtime. This is called within the VM itself only.
 
+    @param fmt "The string to format"
+    @param args "The arguments to format into the format string"
+*>
+fn void runtime(String fmt, args...)
+{
+    io::eprintfn(fmt, ...args);
+
+    int instruction = (int)(vm.ip - vm.chunk.code);
+    int line = vm.chunk.get_line(instruction);
+    io::eprintfn("[line %d] in <script>", line);
+
+    vm::reset_stack();
+}
