@@ -174,7 +174,19 @@ macro read_byte() @local
 }
 
 <*
-    Macro to read a constant from the VM's chunk constants pool.
+    Macro to read a short from the VMs bytecode array.
+
+    @require vm.ip != null
+    @ensure return != null
+*>
+macro read_short() @local
+{
+    vm.ip += 2;
+    return (ushort)((vm.ip[-2] << 8) | vm.ip[-1]);
+}
+
+<*
+    Macro to read a constant from the VMs chunk constants pool.
 
     @require vm.chunk.constants.values != null
     @ensure return.typeid == Value.typeid
@@ -252,6 +264,21 @@ fn void! run_interpreter() @private
         OpCode instruction;
         switch (instruction = (OpCode)read_byte())
         {
+            case JUMP:
+            {
+                ushort offset = read_short();
+                vm.ip += offset;
+            }
+            case JUMP_IF_FALSE:
+            {
+                ushort offset = read_short();
+                if (is_falsey(peek(0))) vm.ip += offset;
+            }
+            case LOOP:
+            {
+                ushort offset = read_short();
+                vm.ip -= offset;
+            }
             case CONSTANT:
             {
                 Value constant = read_constant();

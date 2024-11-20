@@ -15,13 +15,18 @@ import lox::value;
 */
 enum OpCode : char
 {
+    /* Jump Instructions (3 bytes) */
+    JUMP,           // Unconditional jump
+    JUMP_IF_FALSE,  // Conditional jump
+    LOOP,           // Multi-conditional reverse jump
+
     /* Constant Instructions (2 bytes) */
     CONSTANT,
     DEFINE_GLOBAL,
     GET_GLOBAL,
     SET_GLOBAL,
 
-    /* Byte Instructions */
+    /* Byte Instructions (2 bytes) */
     GET_LOCAL,
     SET_LOCAL,
 
@@ -225,6 +230,12 @@ fn int Chunk.disassemble_instruction(&self, int offset)
     OpCode instruction = (OpCode)self.code[offset];
     switch (instruction)
     {
+        case JUMP:
+            return jump_instruction("JUMP", 1, self, offset);
+        case JUMP_IF_FALSE:
+            return jump_instruction("JUMP IF FALSE", 1, self, offset);
+        case LOOP:
+            return jump_instruction("LOOP", -1, self, offset);
         case CONSTANT:
             return constant_instruction("CONSTANT", self, offset);
         case DEFINE_GLOBAL:
@@ -304,6 +315,28 @@ fn int constant_instruction(String name, Chunk *chunk, int offset) @private
     io::eprintfn("'");
 
     return offset + 2;
+}
+
+<*
+    Disassembles a jump (3 byte) instruction.
+
+    NOTE: The 'sign' in this instance is used to denote in which direction to jump in the code.
+    Jump instructions used in something like an 'if' statement jump forward, so they have a
+    positive (+1) signedness. Jump instructions such as a the 'LOOP' instruction jump backwards,
+    therefore they have a negative (-1) signedness.
+
+    @param name "The name of the instruction"
+    @param sign "A directional (negative or positive) offset denoting the direction the code jumps"
+    @param [&in] chunk "A reference to the chunk to disassemble"
+    @param offset "The index of the instruction in the bytecode array"
+*>
+fn int jump_instruction(String name, int sign, Chunk *chunk, int offset) @private
+{
+    ushort jump = (ushort)(chunk.code[offset + 1] << 8);
+    jump |= chunk.code[offset + 2];
+
+    io::eprintfn("%-16s %4d -> %d", name, offset, offset + 3 + sign * jump);
+    return offset + 3;
 }
 
 <*

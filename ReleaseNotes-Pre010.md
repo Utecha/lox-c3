@@ -9,6 +9,7 @@
 - [Build 0.0.55](#build-0-0-55)
 - [Build 0.0.6](#build-0-0-6)
 - [Build 0.0.65](#build-0-0-65)
+- [Build 0.0.7](#build-0-0-7)
 
 ## Build 0-0-1
 
@@ -122,3 +123,15 @@ Information is retained about the depth of scope. Shadowing is allowed, which me
 It is an error to declare 2 variables with the same name in the *same* scope.
 
 ##### NOTE: For now, I have decided to abandon the idea of using GNU readline for an improved REPL. I may well end up writing my own similar library specifically for C3 and saving it for a post '0.1.0' release
+
+## Build 0-0-7
+
+This build is in line with [Chapter 23](https://craftinginterpreters.com/jumping-back-and-forth.html#top) of the book.
+
+This chapter adds jumping instructions. This includes 'and' and 'or' expressions, 'if' statements, and the 'for' and 'while' loops.
+
+At this point, the language is *relatively* usable (emphasis on *relatively*!!). There are glaring issues that prevent it from being legitimately useful as a language, though. A big example of this are strings. Strings in Lox are *ALL* raw strings. There is no support for escape characters, or for string formatting. That alone significantly limits the capabilities of a language.
+
+My plans for the post '0.1.0' rewrite will include support for both raw strings, and format-capable (aka escaped) strings.
+
+Soon to come in the next few builds are functions, closures, and the venerable *garbage collector* (respectively).

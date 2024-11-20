@@ -88,7 +88,7 @@ ParseRule[*] rules = {
     [TokenType.IDENTIFIER]  = { &variable,  null,       Precedence.NONE },
     [TokenType.NUMBER]      = { &number,    null,       Precedence.NONE },
     [TokenType.STRING]      = { &string,    null,       Precedence.NONE },
-    [TokenType.AND]         = { null,       null,       Precedence.NONE },
+    [TokenType.AND]         = { null,       &and,       Precedence.AND },
     [TokenType.CLASS]       = { null,       null,       Precedence.NONE },
     [TokenType.ELSE]        = { null,       null,       Precedence.NONE },
     [TokenType.FALSE]       = { &literal,   null,       Precedence.NONE },
@@ -96,7 +96,7 @@ ParseRule[*] rules = {
     [TokenType.FUN]         = { null,       null,       Precedence.NONE },
     [TokenType.IF]          = { null,       null,       Precedence.NONE },
     [TokenType.NIL]         = { &literal,   null,       Precedence.NONE },
-    [TokenType.OR]          = { null,       null,       Precedence.NONE },
+    [TokenType.OR]          = { null,       &or,        Precedence.OR },
     [TokenType.PRINT]       = { null,       null,       Precedence.NONE },
     [TokenType.RETURN]      = { null,       null,       Precedence.NONE },
     [TokenType.SUPER]       = { null,       null,       Precedence.NONE },
@@ -257,6 +257,69 @@ fn void emit_bytes(char byte1, char byte2) @private
 }
 
 <*
+    Compiles the 3 bytes involved in a jump instruction to the current
+    [compiling] chunk of bytecode.
+
+    Unlike other emitter functions, this one returns the [instruction]
+    offset in the bytecode array of the current chunk.
+
+    The 2 bytes following the [instruction] are placeholder operands for
+    the jump offset. This is later back-patched to store the correct
+    offset, using the bytecode offset returned by this function.
+
+    @param instruction "The instruction to emit"
+*>
+fn int emit_jump(char instruction)
+{
+    emit_byte(instruction);
+    emit_byte(0xff);
+    emit_byte(0xff);
+
+    return current_chunk().count - 2;
+}
+
+<*
+    Backpatches the jump offset for a jump instruction, based on the
+    instruction [offset] provided.
+
+    This is called *before* compiling the instruction that you want
+    the jump to land on.
+
+    @param offset "The instruction offset in the bytecode array"
+*>
+fn void patch_jump(int offset)
+{
+    int jump = current_chunk().count - offset - 2;
+    if (jump > ushort.max)
+    {
+        error::@previous("Too much code to jump over");
+    }
+
+    current_chunk().code[offset] = to_byte((jump >> 8) & 0xff);
+    current_chunk().code[offset + 1] = to_byte(jump & 0xff);
+}
+
+<*
+    Compiles a loop instruction.
+
+    This function takes in the [loop_start], which the offset
+    of the instruction before the loop begins.
+*>
+fn void emit_loop(int loop_start) @private
+{
+    emit_byte(to_byte(OpCode.LOOP));
+
+    int offset = current_chunk().count - loop_start + 2;
+    if (offset > ushort.max)
+    {
+        error::@previous("Loop body is too large");
+    }
+
+    emit_byte(to_byte((offset >> 8) & 0xff));
+    emit_byte(to_byte(offset & 0xff));
+}
+
+<*
     Add's the [value] to the current [compiling] chunks constants pool, returning
     the index to be loaded alongside the 'CONSTANT' instruction.
 
@@ -317,7 +380,8 @@ fn void begin_scope()
 
 <*
     Signifies an end to the current scope. The job of this is to decrement
-    the [scope_depth] stored by the current compiler.
+    the [scope_depth] stored by the current compiler and clean up remaining
+    locals when they go out of scope.
 *>
 fn void end_scope()
 {
@@ -333,6 +397,8 @@ fn void end_scope()
 
 <*
     Compiles a conditional (also known as ternary) (?:) expression.
+
+    @param can_assign "Flag to denote when an expression is assignable"
 *>
 fn void ternary(bool can_assign) @private
 {
@@ -344,6 +410,8 @@ fn void ternary(bool can_assign) @private
 
 <*
     Compiles a binary expression.
+
+    @param can_assign "Flag to denote when an expression is assignable"
 *>
 fn void binary(bool can_assign) @private
 {
@@ -370,6 +438,8 @@ fn void binary(bool can_assign) @private
 
 <*
     Compiles a literal expression, such as 'nil', 'true', or 'false'.
+
+    @param can_assign "Flag to denote when an expression is assignable"
 *>
 fn void literal(bool can_assign) @private
 {
@@ -384,6 +454,8 @@ fn void literal(bool can_assign) @private
 
 <*
     Compiles a grouping '()' expression.
+
+    @param can_assign "Flag to denote when an expression is assignable"
 *>
 fn void grouping(bool can_assign) @private
 {
@@ -393,6 +465,8 @@ fn void grouping(bool can_assign) @private
 
 <*
     Compiles a number literal.
+
+    @param can_assign "Flag to denote when an expression is assignable"
 *>
 fn void number(bool can_assign) @private
 {
@@ -404,6 +478,8 @@ fn void number(bool can_assign) @private
 
 <*
     Compiles a string literal.
+
+    @param can_assign "Flag to denote when an expression is assignable"
 *>
 fn void string(bool can_assign) @private
 {
@@ -417,6 +493,8 @@ fn void string(bool can_assign) @private
 
 <*
     Compiles a unary (!, -) expression.
+
+    @param can_assign "Flag to denote when an expression is assignable"
 *>
 fn void unary(bool can_assign) @private
 {
@@ -436,6 +514,7 @@ fn void unary(bool can_assign) @private
     Compiles a named variable.
 
     @param name "The name of the variable to compile"
+    @param can_assign "Flag to denote when an expression is assignable"
 *>
 fn void named_variable(Token name, bool can_assign) @private
 {
@@ -467,6 +546,8 @@ fn void named_variable(Token name, bool can_assign) @private
 
 <*
     Compiles a variable get expression.
+
+    @param can_assign "Flag to denote when an expression is assignable"
 *>
 fn void variable(bool can_assign) @private
 {
@@ -651,6 +732,38 @@ fn void define_variable(char global) @private
 }
 
 <*
+    Compiles an 'and' (aka '&&') expression.
+
+    @param can_assign "Flag to denote when an expression is assignable"
+*>
+fn void and(bool can_assign) @private
+{
+    int end_jump = emit_jump(to_byte(OpCode.JUMP_IF_FALSE));
+
+    emit_byte(to_byte(OpCode.POP));
+    parse_precedence(Precedence.AND);
+
+    patch_jump(end_jump);
+}
+
+<*
+    Compiles an 'or' (aka '||') expression.
+
+    @param can_assign "Flag to denote when an expression is assignable"
+*>
+fn void or(bool can_assign) @private
+{
+    int else_jump = emit_jump(to_byte(OpCode.JUMP_IF_FALSE));
+    int end_jump = emit_jump(to_byte(OpCode.JUMP));
+
+    patch_jump(else_jump);
+    emit_byte(to_byte(OpCode.POP));
+
+    parse_precedence(Precedence.OR);
+    patch_jump(end_jump);
+}
+
+<*
     Begins the compilation of an expression.
 *>
 fn void expression() @private
@@ -666,8 +779,14 @@ fn void statement() @private
 {
     switch
     {
+        case match(TokenType.FOR):
+            for_statement();
+        case match(TokenType.IF):
+            if_statement();
         case match(TokenType.PRINT):
             print_statement();
+        case match(TokenType.WHILE):
+            while_statement();
         case match(TokenType.LBRACE):
             begin_scope();
             block();
@@ -702,6 +821,81 @@ fn void expression_statement() @private
 }
 
 <*
+    Compiles a for statement.
+*>
+fn void for_statement() @private
+{
+    begin_scope();
+    consume(LPAREN, "Expected '(' after 'for'");
+
+    if (match(TokenType.SEMICOLON))
+        { /* No initializer */ }
+    else if (match(TokenType.VAR))
+        { var_declaration(); }
+    else
+        { expression_statement(); }
+
+    int loop_start = current_chunk().count;
+    int exit_jump = -1;
+
+    if (!match(TokenType.SEMICOLON))
+    {
+        expression();
+        consume(SEMICOLON, "Expected ';' after 'for' loop condition");
+
+        // Jump out of the loop if the condition is false
+        exit_jump = emit_jump(to_byte(OpCode.JUMP_IF_FALSE));
+        emit_byte(to_byte(OpCode.POP));
+    }
+
+    if (!match(TokenType.RPAREN))
+    {
+        int body_jump = emit_jump(to_byte(OpCode.JUMP));
+        int increment_start = current_chunk().count;
+
+        expression();
+        emit_byte(to_byte(OpCode.POP));
+        consume(RPAREN, "Expected ')' after 'for' loop clauses");
+
+        emit_loop(loop_start);
+        loop_start = increment_start;
+        patch_jump(body_jump);
+    }
+
+    statement();
+    emit_loop(loop_start);
+
+    if (exit_jump != -1)
+    {
+        patch_jump(exit_jump);
+        emit_byte(to_byte(OpCode.POP));
+    }
+
+    end_scope();
+}
+
+<*
+    Compiles an 'if-else' statement.
+*>
+fn void if_statement() @private
+{
+    consume(LPAREN, "Expected '(' after 'if'");
+    expression();
+    consume(RPAREN, "Expected ')' after 'if' condition");
+
+    int then_jump = emit_jump(to_byte(OpCode.JUMP_IF_FALSE));
+    emit_byte(to_byte(OpCode.POP));
+    statement();
+
+    int else_jump = emit_jump(to_byte(OpCode.JUMP));
+    patch_jump(then_jump);
+    emit_byte(to_byte(OpCode.POP));
+
+    if (match(TokenType.ELSE)) statement();
+    patch_jump(else_jump);
+}
+
+<*
     Compiles a 'print' statement.
 
     In Lox, 'print' is a keyword and not a builtin function.
@@ -711,6 +905,30 @@ fn void print_statement() @private
     expression();
     consume(SEMICOLON, "Expected ';' after 'print' value");
     emit_byte(to_byte(OpCode.PRINT));
+}
+
+<*
+    Compiles a 'while' statement.
+
+    As with other languages, this runs code on a loop 'while'
+    a certain condition is truthy.
+*>
+fn void while_statement() @private
+{
+    int loop_start = current_chunk().count;
+
+    consume(LPAREN, "Expected '(' after 'while'");
+    expression();
+    consume(RPAREN, "Expected ')' after 'while' condition");
+
+    int exit_jump = emit_jump(to_byte(OpCode.JUMP_IF_FALSE));
+    emit_byte(to_byte(OpCode.POP));
+    statement();
+
+    emit_loop(loop_start);
+
+    patch_jump(exit_jump);
+    emit_byte(to_byte(OpCode.POP));
 }
 
 <*
