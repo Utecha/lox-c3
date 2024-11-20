@@ -66,7 +66,8 @@ macro @previous(String message)
 *>
 fn void runtime(String fmt, args...)
 {
-    io::eprintfn("Error: %s", string::tformat(fmt, args));
+    io::eprintf("Runtime Error: ");
+    io::eprintfn(fmt, ...args);
 
     int instruction = (int)(vm.ip - vm.chunk.code);
     int line = vm.chunk.get_line(instruction);

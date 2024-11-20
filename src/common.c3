@@ -37,3 +37,9 @@ const OPTIMIZE_NEGATION     @builtin = false;
 
 /* Enables the optimization for the not (!) operator */
 const OPTIMIZE_NOT          @builtin = false;
+
+//===----------------===//
+//     Definitions
+//===----------------===//
+
+const uint UINT8_COUNT      @builtin = char.max + 1;

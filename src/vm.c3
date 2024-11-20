@@ -286,6 +286,16 @@ fn void! run_interpreter() @private
                     return VMResult.RUNTIME_ERROR?;
                 }
             }
+            case GET_LOCAL:
+            {
+                char slot = read_byte();
+                push(vm.stack[slot]);
+            }
+            case SET_LOCAL:
+            {
+                char slot = read_byte();
+                vm.stack[slot] = peek(0);
+            }
             case NIL:       push(nil_val());
             case TRUE:      push(bool_val(true));
             case FALSE:     push(bool_val(false));

@@ -185,8 +185,44 @@ fn bool match(TokenType type) @private
 //      Compiler
 //===----------------===//
 
-/* Temporary global bytecode (Chunk) */
+<*
+    Structure representing a 'Local' variable. This stores the token containing the
+    name, as well as the depth of scope.
+*>
+struct Local
+{
+    Token name;
+    int depth;
+}
+
+<*
+    Structure representing a 'Compiler'. This stores the state of parsing, such as the
+    scope depth, as well as all of the local variables encountered.
+*>
+struct Compiler
+{
+    Local[UINT8_COUNT] locals;
+    int local_count;
+    int scope_depth;
+}
+
+/* Temporary global compiler */
+Compiler *current = null;
+
+/* Temporary global bytecode chunk */
 Chunk *compiling;
+
+<*
+    Initializes a new 'Compiler'.
+
+    @param [&inout] compiler "The compiler to initialize"
+*>
+fn void init(Compiler *compiler)
+{
+    compiler.local_count = 0;
+    compiler.scope_depth = 0;
+    current = compiler;
+}
 
 <*
     Return's the pointer to the current [compiling] chunk of bytecode.
@@ -268,6 +304,31 @@ fn void end_compiler() @private
         if (!parser.had_error)
             { current_chunk().disassemble("Code"); }
     $endif
+}
+
+<*
+    Signifies the beginning of a new scope. The job of this is to increment
+    the [scope_depth] stored by the current compiler.
+*>
+fn void begin_scope()
+{
+    current.scope_depth++;
+}
+
+<*
+    Signifies an end to the current scope. The job of this is to decrement
+    the [scope_depth] stored by the current compiler.
+*>
+fn void end_scope()
+{
+    current.scope_depth--;
+
+    while (current.local_count > 0 &&
+           current.locals[current.local_count - 1].depth > current.scope_depth)
+    {
+        emit_byte(to_byte(OpCode.POP));
+        current.local_count--;
+    }
 }
 
 <*
@@ -378,19 +439,29 @@ fn void unary(bool can_assign) @private
 *>
 fn void named_variable(Token name, bool can_assign) @private
 {
-    char arg = identifier_constant(&name);
+    char get_op, set_op;
+    int arg = resolve_local(current, &name);
 
-    // Assignment
+    if (arg != -1)
+    {
+        get_op = to_byte(OpCode.GET_LOCAL);
+        set_op = to_byte(OpCode.SET_LOCAL);
+    }
+    else
+    {
+        arg = identifier_constant(&name);
+        get_op = to_byte(OpCode.GET_GLOBAL);
+        set_op = to_byte(OpCode.SET_GLOBAL);
+    }
+
     if (can_assign && match(TokenType.EQUAL))
     {
         expression();
-        emit_bytes(to_byte(OpCode.SET_GLOBAL), arg);
+        emit_bytes(set_op, (char)arg);
     }
-
-    // Get expression
     else
     {
-        emit_bytes(to_byte(OpCode.GET_GLOBAL), arg);
+        emit_bytes(get_op, (char)arg);
     }
 }
 
@@ -418,7 +489,7 @@ fn ParseRule *get_rule(TokenType type) @private
 
     @param precedence "The operator precedence to follow"
 *>
-fn void parse_precedence(Precedence precedence)
+fn void parse_precedence(Precedence precedence) @private
 {
     advance();
 
@@ -449,9 +520,92 @@ fn void parse_precedence(Precedence precedence)
 
     @param [&in] name "The literal name of the identifier"
 *>
-fn char identifier_constant(Token *name)
+fn char identifier_constant(Token *name) @private
 {
     return make_constant(obj_val(object::copy_string(name.lexeme, name.lexeme.len)));
+}
+
+<*
+    Returns 'true' if the two given tokens have equivalent lexemes, otherwise it returns
+    'false'.
+
+    NOTE: In C, this is done by checking the lengths and using memcmp. In C3, that is not
+    necessary. If you are working with the (String) type, you can directly compare for
+    equality. This is how I handle keywords in the lexing stage as well.
+
+    @param [&in] a "The first, or 'a' token to compare"
+    @param [&in] b "The second, or 'b' token to compare"
+*>
+fn bool identifiers_equal(Token *a, Token *b) @private
+{
+    return a.lexeme == b.lexeme;
+}
+
+<*
+    Takes in a reference to the current compiler and a token, and searches for the
+    associated local variable, returning the index if found. Otherwise, it returns
+    '-1'.
+
+    @param [&in] compiler "A reference to the current compiler"
+    @param [&in] name "A reference to the variable to search for"
+*>
+fn int resolve_local(Compiler *compiler, Token *name)
+{
+    for (int i = compiler.local_count - 1; i >= 0; i--)
+    {
+        Local *local = &compiler.locals[i];
+        if (identifiers_equal(name, &local.name))
+        {
+            if (local.depth == -1)
+            {
+                error::@previous("Cannot read a local variable within its own initializer");
+            }
+
+            return i;
+        }
+    }
+
+    return -1;
+}
+
+<*
+    Add's a local to the current compilers array of locals.
+*>
+fn void add_local(Token name) @private
+{
+    if (current.local_count == UINT8_COUNT)
+    {
+        error::@previous("Too many local variables in the current scope");
+        return;
+    }
+
+    Local *local = &current.locals[current.local_count++];
+    local.name = name;
+    local.depth = -1;
+}
+
+<*
+    Check's the current depth of scope and if it is greater than 0, it passes
+    the token on to be added to the current compilers array of locals.
+*>
+fn void declare_variable() @private
+{
+    if (current.scope_depth == 0) return;
+
+    Token *name = &parser.previous;
+    for (int i = current.local_count - 1; i >= 0; i--)
+    {
+        Local *local = &current.locals[i];
+        if (local.depth != -1 && local.depth < current.scope_depth) break;
+
+        if (identifiers_equal(name, &local.name))
+        {
+            error::@previous("Already a variable with this name in this scope");
+        }
+    }
+
+
+    add_local(*name);
 }
 
 <*
@@ -460,20 +614,39 @@ fn char identifier_constant(Token *name)
 
     @param message "The error message in the event the next token is *not* an IDENTIFIER"
 *>
-fn char parse_variable(String message)
+fn char parse_variable(String message) @private
 {
     consume(IDENTIFIER, message);
+
+    declare_variable();
+    if (current.scope_depth > 0) return 0;
+
     return identifier_constant(&parser.previous);
 }
 
 <*
+    Marks a local variable as having been initialized.
+*>
+fn void mark_initialized() @private
+{
+    current.locals[current.local_count - 1].depth = current.scope_depth;
+}
+
+<*
     After a variable declaration has been fully parsed (successfully), this
-    function officially compiles the variable to signify it as being defined.
+    function officially compiles the variable to signify it as being available
+    for use.
 
     @param global "The index of the variable to compile"
 *>
-fn void define_variable(char global)
+fn void define_variable(char global) @private
 {
+    if (current.scope_depth > 0)
+    {
+        mark_initialized();
+        return;
+    }
+
     emit_bytes(to_byte(OpCode.DEFINE_GLOBAL), global);
 }
 
@@ -495,9 +668,25 @@ fn void statement() @private
     {
         case match(TokenType.PRINT):
             print_statement();
+        case match(TokenType.LBRACE):
+            begin_scope();
+            block();
+            end_scope();
         default:
             expression_statement();
     }
+}
+
+<*
+    Compile's a block statement, which is any number of statements found
+    inbetween two curly braces.
+*>
+fn void block() @private
+{
+    while (!check(RBRACE) && !check(EOF))
+        { declaration(); }
+
+    consume(RBRACE, "Expected '}' after block");
 }
 
 <*
@@ -604,6 +793,9 @@ fn bool compile(char *source, Chunk *chunk)
     $endif
 
     lexer::init(source);
+
+    Compiler compiler;
+    init(&compiler);
     compiling = chunk;
 
     parser.had_error = false;

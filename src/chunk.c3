@@ -21,6 +21,10 @@ enum OpCode : char
     GET_GLOBAL,
     SET_GLOBAL,
 
+    /* Byte Instructions */
+    GET_LOCAL,
+    SET_LOCAL,
+
     /* Simple Instructions (1 byte) */
     NOT,
     NIL,
@@ -229,6 +233,10 @@ fn int Chunk.disassemble_instruction(&self, int offset)
             return constant_instruction("GET GLOBAL", self, offset);
         case SET_GLOBAL:
             return constant_instruction("SET GLOBAL", self, offset);
+        case GET_LOCAL:
+            return byte_instruction("GET LOCAL", self, offset);
+        case SET_LOCAL:
+            return byte_instruction("SET LOCAL", self, offset);
         case NOT:
             return simple_instruction("NOT", offset);
         case NIL:
@@ -267,10 +275,24 @@ fn int Chunk.disassemble_instruction(&self, int offset)
 }
 
 <*
+    Disassembles a byte (simple 2 byte) instruction.
+
+    @param name "The name of the instruction"
+    @param [&in] chunk "A reference to the chunk to disassemble"
+    @param offset "The index of the instruction in the bytecode array"
+*>
+fn int byte_instruction(String name, Chunk *chunk, int offset) @private
+{
+    char slot = chunk.code[offset + 1];
+    io::eprintfn("%-16s %4d", name, slot);
+    return offset + 2;
+}
+
+<*
     Disassembles a constant (2 byte) instruction.
 
     @param name "The name of the instruction"
-    @param [&in] chunk "The chunk containing the instruction to disassemble"
+    @param [&in] chunk "A reference to the chunk to disassemble"
     @param offset "The index of the instruction in the bytecode array"
 *>
 fn int constant_instruction(String name, Chunk *chunk, int offset) @private

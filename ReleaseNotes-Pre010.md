@@ -8,6 +8,7 @@
 - [Build 0.0.5](#build-0-0-5)
 - [Build 0.0.55](#build-0-0-55)
 - [Build 0.0.6](#build-0-0-6)
+- [Build 0.0.65](#build-0-0-65)
 
 ## Build 0-0-1
 
@@ -107,3 +108,17 @@ This build is in line with [Chapter 21](https://craftinginterpreters.com/global-
 
 - Lox now supports global variable declarations, assignment, and use in expressions/statements.
 - Further to that, Lox now supports statements in general. You're now required to end lines with a ';'.
+
+## Build 0-0-65
+
+This build is in line with [Chapter 22](https://craftinginterpreters.com/local-variables.html#top) of the book.
+
+This chapter added local variables and the concept of scope to the mix.
+
+This means, subsequently, that blocks were introduced. You can now write arbitrary block statements (any number of statements enclosed in {}).
+
+Information is retained about the depth of scope. Shadowing is allowed, which means you can have 2 variables with the same name in *different* scopes.
+
+It is an error to declare 2 variables with the same name in the *same* scope.
+
+##### NOTE: For now, I have decided to abandon the idea of using GNU readline for an improved REPL. I may well end up writing my own similar library specifically for C3 and saving it for a post '0.1.0' release
