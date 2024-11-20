@@ -10,6 +10,7 @@
 - [Build 0.0.6](#build-0-0-6)
 - [Build 0.0.65](#build-0-0-65)
 - [Build 0.0.7](#build-0-0-7)
+- [Build 0.0.75](#build-0-0-75)
 
 ## Build 0-0-1
 
@@ -135,3 +136,31 @@ At this point, the language is *relatively* usable (emphasis on *relatively*!!).
 My plans for the post '0.1.0' rewrite will include support for both raw strings, and format-capable (aka escaped) strings.
 
 Soon to come in the next few builds are functions, closures, and the venerable *garbage collector* (respectively).
+
+## Build 0-0-75
+
+This build is in line with [Chapter 24](https://craftinginterpreters.com/calls-and-functions.html#top) of the book.
+
+This chapter added functions in all of their glory. This, of course, means the ability to define functions and then call to those functions.
+
+As you'd expect, functions implicitly return null, but that can also be done explicitly. They can also return values.
+
+Functions are also capable of recursion. A function can refer to and call itself from within its own body.
+
+Furthermore, there is the inclusion of 'native' functions. These are functions written in native C3 code. The VM maintains an array of pointers to the native functions added to the language, making them available to be called from within Lox code.
+
+In the original book, the only native function added to the language was a 'clock' function that you would use to effectively create a timer for a program like so:
+
+```javascript
+var start = clock();
+thisFunctionDoesSomething();
+print clock() - start;
+```
+
+This would display the amount of time (in seconds) that the code in-between the two calls to 'clock' took to execute.
+
+I have little desire to really add any more than that one at this point. Ideally, I'd want to set it up so that natives (and user functions, for that matter) can be variadic. That is all things I will
+be working on post '0.1.0'.
+
+Speaking of which, it's probably time that I mention.. Post 0.1.0 will actually be under a different name and have its own separate repo altogether. I will add that repo as a submodule of this one so it
+wont be difficult to find.

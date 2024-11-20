@@ -63,7 +63,7 @@ Parser parser @builtin;
 ParseRule[*] rules = {
     [TokenType.ERROR]       = { null,       null,       Precedence.NONE },
     [TokenType.EOF]         = { null,       null,       Precedence.NONE },
-    [TokenType.LPAREN]      = { &grouping,  null,       Precedence.NONE },
+    [TokenType.LPAREN]      = { &grouping,  &call,      Precedence.CALL },
     [TokenType.RPAREN]      = { null,       null,       Precedence.NONE },
     [TokenType.LBRACE]      = { null,       null,       Precedence.NONE },
     [TokenType.RBRACE]      = { null,       null,       Precedence.NONE },
@@ -196,42 +196,91 @@ struct Local
 }
 
 <*
+    Enumerator of function types.
+
+    CLOSURE     | A top-level function enclosing over another inner function.
+    FUNCTION    | A regular top-level function.
+    METHOD      | A function defined as a member of a class or object.
+    SCRIPT      | The implicit 'main' function. *ALL* functions lie within this function.
+*>
+enum FunctionType : int
+{
+    FUNCTION,
+    SCRIPT
+}
+
+<*
     Structure representing a 'Compiler'. This stores the state of parsing, such as the
     scope depth, as well as all of the local variables encountered.
+
+    It also holds on to the current function being compiled. Each function owns its own
+    (Chunk) to be compiled. As a result, each function gets its own compiler.
+
+    This replaces the original global chunk, as now the global scope is treated as an
+    implicit 'main' function. This is roughly how it works for most scripting languages
+    which is why you're able to write things like 'if' statements and loops at the top level.
 *>
 struct Compiler
 {
+    Compiler *enclosing;
+
+    ObjFunction *function;
+    FunctionType type;
+
     Local[UINT8_COUNT] locals;
     int local_count;
     int scope_depth;
 }
 
-/* Temporary global compiler */
+<*
+    Global variable used to signify the current compiler.
+
+    Since each function gets its own compiler, and each compiler contains a pointer
+    to its parent (it is a linked-list), this is used to tell the rest of this module
+    which of those compilers is the 'current' one you should be compiling into.
+*>
 Compiler *current = null;
 
-/* Temporary global bytecode chunk */
-Chunk *compiling;
-
 <*
-    Initializes a new 'Compiler'.
+    Initializes a new 'Compiler' structure.
+
+    The compiler implicitly claims slot 0 of its stack of local variables for the
+    VMs own internal use.
 
     @param [&inout] compiler "The compiler to initialize"
+    @param type "The type of function to initialize the compiler for"
 *>
-fn void init(Compiler *compiler)
+fn void init(Compiler *compiler, FunctionType type)
 {
+    compiler.enclosing = current;
+    compiler.function = null;
+    compiler.type = type;
     compiler.local_count = 0;
     compiler.scope_depth = 0;
+    compiler.function = object::new_function();
     current = compiler;
+
+    if (type != FunctionType.SCRIPT)
+    {
+        current.function.name = object::copy_string(
+            parser.previous.lexeme,
+            parser.previous.lexeme.len
+        );
+    }
+
+    Local *local = &current.locals[current.local_count++];
+    local.depth = 0;
+    local.name.lexeme = "";
 }
 
 <*
     Return's the pointer to the current [compiling] chunk of bytecode.
 
-    @ensure compiling != null
+    @ensure return != null
 *>
 fn Chunk *current_chunk() @private
 {
-    return compiling;
+    return &current.function.chunk;
 }
 
 <*
@@ -353,20 +402,39 @@ fn void emit_constant(Value value) @private
 *>
 fn void emit_return() @private
 {
+    emit_byte(to_byte(OpCode.NIL));
     emit_byte(to_byte(OpCode.RETURN));
 }
 
 <*
-    Ends compilation of the users source code.
+    Ends compilation of the current function, returning the function fully compiled.
+
+    This change result from the fact that functions own their own chunks, and a global
+    chunk is no longer passed in to the compiler from the VM.
+
+    At the top level, this returns the implicit 'main' function to the VM, which is the
+    entirety of the compiled bytecode generated from the users source code.
+
+    The VM then loads itself with the chunk provided by that function object and runs the
+    interpreter on it.
 *>
-fn void end_compiler() @private
+fn ObjFunction *end_compiler() @private
 {
     emit_return();
+    ObjFunction *function = current.function;
 
     $if $feature(DEBUG) &&& DUMP_CHUNK:
         if (!parser.had_error)
-            { current_chunk().disassemble("Code"); }
+        {
+            current_chunk().disassemble(
+                function.name != null ?
+                ((ZString)function.name.chars).str_view() : "<fn main>"
+            );
+        }
     $endif
+
+    current = current.enclosing;
+    return function;
 }
 
 <*
@@ -434,6 +502,17 @@ fn void binary(bool can_assign) @private
         case STAR:      emit_byte(to_byte(OpCode.MULTIPLY));
         default:        return; // Unreachable
     }
+}
+
+<*
+    Compiles a call expression.
+
+    @param can_assign "Flag to denote when an expression is assignable"
+*>
+fn void call(bool can_assign) @private
+{
+    char arg_count = argument_list();
+    emit_bytes(to_byte(OpCode.CALL), arg_count);
 }
 
 <*
@@ -710,6 +789,8 @@ fn char parse_variable(String message) @private
 *>
 fn void mark_initialized() @private
 {
+    if (current.scope_depth == 0) return;
+
     current.locals[current.local_count - 1].depth = current.scope_depth;
 }
 
@@ -729,6 +810,32 @@ fn void define_variable(char global) @private
     }
 
     emit_bytes(to_byte(OpCode.DEFINE_GLOBAL), global);
+}
+
+<*
+    Compiles the list of arguments passed into a call expression.
+
+    Returns the number of arguments that were compiled (max 255).
+*>
+fn char argument_list() @private
+{
+    char arg_count = 0;
+
+    if (!check(RPAREN))
+    {
+        do {
+            expression();
+            if (arg_count == 255)
+            {
+                error::@previous("Cannot have more than 255 arguments to a call expression");
+            }
+
+            arg_count++;
+        } while (match(COMMA));
+    }
+
+    consume(RPAREN, "Expected ')' after function call arguments");
+    return arg_count;
 }
 
 <*
@@ -779,18 +886,28 @@ fn void statement() @private
 {
     switch
     {
-        case match(TokenType.FOR):
+        case match(FOR):
             for_statement();
-        case match(TokenType.IF):
+
+        case match(IF):
             if_statement();
-        case match(TokenType.PRINT):
+
+        case match(PRINT):
             print_statement();
-        case match(TokenType.WHILE):
+
+        case match(RETURN):
+            return_statement();
+
+        case match(WHILE):
             while_statement();
-        case match(TokenType.LBRACE):
+
+        case match(LBRACE):
+        {
             begin_scope();
             block();
             end_scope();
+        }
+
         default:
             expression_statement();
     }
@@ -828,9 +945,9 @@ fn void for_statement() @private
     begin_scope();
     consume(LPAREN, "Expected '(' after 'for'");
 
-    if (match(TokenType.SEMICOLON))
+    if (match(SEMICOLON))
         { /* No initializer */ }
-    else if (match(TokenType.VAR))
+    else if (match(VAR))
         { var_declaration(); }
     else
         { expression_statement(); }
@@ -875,6 +992,44 @@ fn void for_statement() @private
 }
 
 <*
+    Finishes the compilation of a function statement.
+
+    This begins the chain of compilers. The top-level compiler
+    is declared and initialized inside of 'compile()'.
+
+    Each subsequent function contained within the implicit 'main'
+    function gets its own separate compiler.
+*>
+fn void function(FunctionType type) @private
+{
+    Compiler compiler;
+    init(&compiler, type);
+    begin_scope();
+
+    consume(LPAREN, "Expected '(' after function name");
+    if (!check(RPAREN))
+    {
+        do {
+            current.function.arity++;
+            if (current.function.arity > char.max)
+            {
+                error::@current("Cannot have more than 255 parameters to a function");
+            }
+
+            char constant = parse_variable("Expected parameter name");
+            define_variable(constant);
+        } while (match(COMMA));
+    }
+    consume(RPAREN, "Expected ')' after function parameters");
+
+    consume(LBRACE, "Expected '{' before function body");
+    block();
+
+    ObjFunction *function = end_compiler();
+    emit_bytes(to_byte(OpCode.CONSTANT), make_constant(obj_val(function)));
+}
+
+<*
     Compiles an 'if-else' statement.
 *>
 fn void if_statement() @private
@@ -891,7 +1046,7 @@ fn void if_statement() @private
     patch_jump(then_jump);
     emit_byte(to_byte(OpCode.POP));
 
-    if (match(TokenType.ELSE)) statement();
+    if (match(ELSE)) statement();
     patch_jump(else_jump);
 }
 
@@ -905,6 +1060,28 @@ fn void print_statement() @private
     expression();
     consume(SEMICOLON, "Expected ';' after 'print' value");
     emit_byte(to_byte(OpCode.PRINT));
+}
+
+<*
+    Compiles a return statement.
+*>
+fn void return_statement() @private
+{
+    if (current.type == FunctionType.SCRIPT)
+    {
+        error::@previous("Cannot return from top-level code");
+    }
+
+    if (match(SEMICOLON))
+    {
+        emit_return();
+    }
+    else
+    {
+        expression();
+        consume(SEMICOLON, "Expected ';' after 'return' value");
+        emit_byte(to_byte(OpCode.RETURN));
+    }
 }
 
 <*
@@ -939,6 +1116,8 @@ fn void declaration() @private
 {
     switch
     {
+        case match(TokenType.FUN):
+            fun_declaration();
         case match(TokenType.VAR):
             var_declaration();
         default:
@@ -946,6 +1125,17 @@ fn void declaration() @private
     }
 
     if (parser.panic_mode) synchronize();
+}
+
+<*
+    Compiles a function declaration statement.
+*>
+fn void fun_declaration() @private
+{
+    char global = parse_variable("Expected function name");
+    mark_initialized();
+    function(FunctionType.FUNCTION);
+    define_variable(global);
 }
 
 <*
@@ -1001,32 +1191,28 @@ fn void synchronize() @private
     Compiles a Lox source file into Lox bytecode.
 
     @param [&in] source "The source code of the script being compiled"
-    @param [&inout] chunk "The bytecode chunk to compile into"
 *>
-fn bool compile(char *source, Chunk *chunk)
+fn ObjFunction *compile(char *source)
 {
     $if $feature(DEBUG) &&& (DUMP_TOKENS == true):
         lexer::dump_tokens(source);
-        return true;
+        return null;
     $endif
 
     lexer::init(source);
 
     Compiler compiler;
-    init(&compiler);
-    compiling = chunk;
+    init(&compiler, FunctionType.SCRIPT);
 
     parser.had_error = false;
     parser.panic_mode = false;
 
     advance();
-
     while (!match(TokenType.EOF))
     {
         declaration();
     }
 
-    end_compiler();
-
-    return !parser.had_error;
+    ObjFunction *function = end_compiler();
+    return parser.had_error ? null : function;
 }

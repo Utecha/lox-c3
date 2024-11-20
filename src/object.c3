@@ -1,4 +1,5 @@
 module lox::object;
+import lox::chunk;
 import lox::memory @public;
 import lox::value;
 import lox::vm;
@@ -35,6 +36,24 @@ fn bool is_obj_type(Value value, ObjType type) @local
 }
 
 <*
+    Returns 'true' if the provided [value] is of the type (FUNCTION). Otherwise,
+    it returns 'false'.
+
+    @param value "The value to type check as a function"
+*>
+macro is_function(value) @builtin
+    => is_obj_type(value, ObjType.FUNCTION);
+
+<*
+    Returns 'true' if the provided [value] is of the type (NATIVE). Otherwise,
+    it returns 'false'.
+
+    @param value "The value to type check as a native function"
+*>
+macro is_native(value) @builtin
+    => is_obj_type(value, ObjType.NATIVE);
+
+<*
     Returns 'true' if the provided [value] is of the type (STRING). Otherwise,
     it returns 'false'.
 
@@ -44,10 +63,29 @@ macro is_string(value) @builtin
     => is_obj_type(value, ObjType.STRING);
 
 <*
+    Take's a [value] that is expected to be a valid pointer to an (ObjFunction)
+    and casts it to an (ObjFunction *) for other use.
+
+    @param value "The value to cast"
+*>
+macro as_function(value) @builtin
+    => (ObjFunction *)as_obj(value);
+
+<*
+    Take's a [value] that is expected to be a valid pointer to an (ObjNative)
+    and casts it to an (ObjNative *), returning the associated [function]
+    pointer.
+
+    @param value "The value to return a native function pointer from"
+*>
+macro as_native(value) @builtin
+    => ((ObjNative *)as_obj(value)).function;
+
+<*
     Take's a [value] that is expected to be a valid pointer to an (ObjString)
     and casts it to an (ObjString *) for other use.
 
-    @param value "The value to return as an ObjString *"
+    @param value "The value to cast"
 *>
 macro as_string(value) @builtin
     => (ObjString *)as_obj(value);
@@ -67,6 +105,8 @@ macro as_cstring(value) @builtin
 *>
 enum ObjType : int
 {
+    FUNCTION,
+    NATIVE,
     STRING
 }
 
@@ -89,6 +129,31 @@ struct Obj
 }
 
 <*
+    The object structure representing a (Function) in Lox.
+*>
+struct ObjFunction
+{
+    Obj obj;
+    int arity;
+    Chunk chunk;
+    ObjString *name;
+}
+
+<*
+    Function pointer to a native Lox function.
+*>
+def NativeFn = fn Value (int argc, Value *args);
+
+<*
+    The object structure representing a (Native) function in Lox.
+*>
+struct ObjNative
+{
+    Obj obj;
+    NativeFn function;
+}
+
+<*
     The object structure representing a (String) in Lox.
 *>
 struct ObjString
@@ -99,6 +164,15 @@ struct ObjString
     uint hash;
 }
 
+<*
+    Allocates a generic (Obj) on the heap.
+
+    This is wrapped by a macro that provides the necessary arguments and correctly
+    typecasts the (Obj) to match the [type] of object being allocated.
+
+    @param size "The size of the object"
+    @param type "The type tag of the object"
+*>
 fn Obj *allocate_object(usz size, ObjType type)
 {
     Obj *object = (Obj *)memory::reallocate(null, 0, size);
@@ -106,6 +180,28 @@ fn Obj *allocate_object(usz size, ObjType type)
     object.next = vm.objects;
     vm.objects = object;
     return object;
+}
+
+<*
+    Allocates a new (ObjFunction) on the heap and returns the pointer.
+*>
+fn ObjFunction *new_function()
+{
+    ObjFunction *function = allocate_obj(ObjFunction, ObjType.FUNCTION);
+    function.arity = 0;
+    function.chunk.init();
+    function.name = null;
+    return function;
+}
+
+<*
+    Allocates a new (ObjNative) on the heap and returns the pointer.
+*>
+fn ObjNative *new_native(NativeFn function)
+{
+    ObjNative *native = allocate_obj(ObjNative, ObjType.NATIVE);
+    native.function = function;
+    return native;
 }
 
 <*
@@ -196,6 +292,23 @@ fn ObjString *take_string(char *chars, int len)
 }
 
 <*
+    Handles the printing of function objects.
+
+    @param [&in] function "A reference to the function to print"
+    @param stream "The output stream to print to"
+*>
+fn void print_function(ObjFunction *function, OutStream stream) @local
+{
+    if (function.name == null)
+    {
+        (void) io::fprintf(stream, "<fn main>");
+        return;
+    }
+
+    (void) io::fprintf(stream, "<fn %s>", (ZString)function.name.chars);
+}
+
+<*
     Print function specific to Lox objects.
 
     @param value "The Value to print"
@@ -205,6 +318,10 @@ fn void print(Value value, OutStream stream = io::stdout())
 {
     switch (obj_type(value))
     {
+        case FUNCTION:
+            print_function(as_function(value), stream);
+        case NATIVE:
+            (void) io::fprintf(stream, "<native fn>");
         case STRING:
             (void) io::fprintf(stream, "%s", (ZString)as_cstring(value));
     }

@@ -8,13 +8,17 @@ import lox::object;
 import lox::table;
 import lox::value;
 import std::io @norecurse;
+import std::time;
 
 //===----------------===//
 // Lox Virtual Machine
 //===----------------===//
 
-<* Maximum size of the VM's 'Value' stack before an overflow would occur *>
-const uint STACK_MAX = 256;
+<* The maximum number of call frames allowed at any given point *>
+const uint FRAMES_MAX = 64;
+
+<* The maximum size of the VMs 'Value' stack *>
+const uint STACK_MAX = FRAMES_MAX * UINT8_COUNT;
 
 <* Fault values returned by the VM under different error conditions (compiler, runtime) *>
 fault VMResult
@@ -23,13 +27,47 @@ fault VMResult
     RUNTIME_ERROR
 }
 
-<* Structure representing the Lox Virtual Machine *>
+<*
+    Structure representing a call frame.
+
+    When a function is called and it is loaded onto the VMs stack, the VM
+    records the location of the first slot where the functions locals begin.
+
+    Instructions for working with locals will access them by a slot index
+    relative to that location, rather than relative to the bottom of the
+    stack.
+
+    These values are calculated at compile time. At runtime, the relative
+    slot is then converted to an absolute stack index. This is what is
+    known as a 'call frame'. It is a runtime view of a functions instructions
+    relative to the instructions surrounding it.
+*>
+struct CallFrame
+{
+    ObjFunction *function;
+    char *ip;
+    Value *slots;
+}
+
+<*
+    Structure representing the Lox Virtual Machine
+
+    The VM is essentially the global state machine for a given script. It manages the
+    compilation of the users source code, and loads the resulting data into itself
+    to run inside the interpreter.
+
+    It also handles all of the memory that is allocated and needs to be freed during compile
+    time, runtime, and at the end of the program.
+*>
 struct LoxVM
 {
-    Chunk *chunk;
-    char *ip;
+    /*  */
+    CallFrame[FRAMES_MAX] frames;
+    int frame_count;
+
     Value[STACK_MAX] stack;
     Value *stack_top;
+
     Table globals;
     Table strings;
     Obj *objects;
@@ -39,6 +77,18 @@ struct LoxVM
 LoxVM vm @builtin;
 
 <*
+    Native 'clock' function. This returns the elapsed time since the program
+    began (or since the function was called), in seconds.
+
+    @param argc "The argument count"
+    @param [&in] args "The arguments passed into the function"
+*>
+fn Value clock_native(int argc, Value *args)
+{
+    return number_val(time::now().to_seconds() / (double)time::SEC);
+}
+
+<*
     Reset's the pointer [vm.stack_top] to the beginning of the VM's [stack].
 
     @ensure vm.stack_top != null
@@ -46,6 +96,7 @@ LoxVM vm @builtin;
 fn void reset_stack() @private
 {
     vm.stack_top = &vm.stack[0];
+    vm.frame_count = 0;
 }
 
 <*
@@ -58,6 +109,8 @@ fn void init()
     vm.globals.init();
     vm.strings.init();
     vm.objects = null;
+
+    define_native("clock", &clock_native);
 }
 
 <*
@@ -83,15 +136,11 @@ fn void! interpret(char *source)
 {
     if (source == null) return;
 
-    Chunk chunk;
-    chunk.init();
-    defer chunk.free();
+    ObjFunction *function = compiler::compile(source);
+    if (function == null) return VMResult.COMPILE_ERROR?;
 
-    if (!compiler::compile(source, &chunk))
-        { return VMResult.COMPILE_ERROR?; }
-
-    vm.chunk = &chunk;
-    vm.ip = vm.chunk.code;
+    push(obj_val(function));
+    call(function, 0);
 
     return run_interpreter()!;
 }
@@ -130,6 +179,86 @@ fn Value peek(int distance) @local
 }
 
 <*
+    Handles the loading of a function for a call expression.
+
+    This initializes the next call frame on the VMs stack.
+
+    @param [&in] function "A reference to the function being called"
+    @param argc "The argument count of the function"
+*>
+fn bool call(ObjFunction *function, int argc) @local
+{
+    if (argc != function.arity)
+    {
+        error::runtime("Expected %d arguments, but got %d instead", function.arity, argc);
+        return false;
+    }
+
+    if (vm.frame_count == FRAMES_MAX)
+    {
+        error::runtime("Stack overflow");
+        return false;
+    }
+
+    CallFrame *frame = &vm.frames[vm.frame_count++];
+    frame.function = function;
+    frame.ip = function.chunk.code;
+    frame.slots = vm.stack_top - argc - 1;
+    return true;
+}
+
+<*
+    Handles the dispatching of a call expression based on the type of object
+    the call is being made on (such as a class, function, or method).
+*>
+fn bool call_value(Value callee, int argc) @local
+{
+    if (is_obj(callee))
+    {
+        switch (obj_type(callee))
+        {
+            case FUNCTION:
+                return call(as_function(callee), argc);
+            case NATIVE:
+            {
+                NativeFn native = as_native(callee);
+                Value result = native(argc, vm.stack_top - argc);
+                vm.stack_top -= argc + 1;
+                push(result);
+                return true;
+            }
+            default:
+                break; // Non-callable object type
+        }
+    }
+
+    error::runtime("You can only call classes, functions, or methods on an instance");
+    return false;
+}
+
+<*
+    Takes in a [name] and a pointer to a [function], pushing them onto the stack long
+    enough to add them to the VMs global variables table.
+
+    It then immediately pops them off the stack to prevent them from being freed during
+    a GC cycle, as both 'object::copy_string()' and 'object::new_native()' dynamically allocate
+    memory using the custom 'reallocate()' function. That function is the the main allocator
+    used by the GC and when it is called, can potentially trigger the GC to run a collection
+    cycle.
+
+    Since natives are stored in the globals table, they are freed along with the rest of
+    the globals.
+*>
+fn void define_native(String name, NativeFn function) @private
+{
+    push(obj_val(object::copy_string(name, name.len)));
+    push(obj_val(object::new_native(function)));
+    vm.globals.set(as_string(vm.stack[0]), vm.stack[1]);
+    pop();
+    pop();
+}
+
+<*
     Returns 'true' if the provided [value] is considered 'falsey'. Otherwise,
     it returns 'false'.
 
@@ -165,46 +294,46 @@ fn void concatenate() @local
 <*
     Macro to read a byte from the VMs bytecode array.
 
-    @require vm.ip != null
+    @param [&inout] frame "A reference to the call frame to read a byte from"
     @ensure return != null
 *>
-macro read_byte() @local
+macro read_byte(CallFrame *frame) @local
 {
-    return *vm.ip++;
+    return *frame.ip++;
 }
 
 <*
     Macro to read a short from the VMs bytecode array.
 
-    @require vm.ip != null
+    @param [&inout] frame "A reference to the call frame to read a short from"
     @ensure return != null
 *>
-macro read_short() @local
+macro read_short(CallFrame *frame) @local
 {
-    vm.ip += 2;
-    return (ushort)((vm.ip[-2] << 8) | vm.ip[-1]);
+    frame.ip += 2;
+    return (ushort)((frame.ip[-2] << 8) | frame.ip[-1]);
 }
 
 <*
     Macro to read a constant from the VMs chunk constants pool.
 
-    @require vm.chunk.constants.values != null
+    @param [&inout] frame "A reference to the call frame to read a constant from"
     @ensure return.typeid == Value.typeid
 *>
-macro read_constant() @local
+macro read_constant(CallFrame *frame) @local
 {
-    return vm.chunk.constants.values[read_byte()];
+    return frame.function.chunk.constants.values[read_byte(frame)];
 }
 
 <*
     Macro to read a string from the VM's chunk constants pool.
 
-    @require vm.chunk.constants.values != null
+    @param [&inout] frame "A reference to the call frame to read a string from"
     @ensure return.typeid == ObjString.typeid
 *>
-macro read_string() @local
+macro read_string(CallFrame *frame) @local
 {
-    return as_string(read_constant());
+    return as_string(read_constant(frame));
 }
 
 <*
@@ -246,6 +375,8 @@ macro binary_op(char op) @local
 *>
 fn void! run_interpreter() @private
 {
+    CallFrame *frame = &vm.frames[vm.frame_count - 1];
+
     for (;;)
     {
         $if $feature(DEBUG) &&& TRACE_INSTRUCTIONS:
@@ -258,41 +389,46 @@ fn void! run_interpreter() @private
             }
             io::eprintfn("");
 
-            vm.chunk.disassemble_instruction((int)(vm.ip - vm.chunk.code));
+            frame.function.chunk.disassemble_instruction(
+                (int)(frame.ip - frame.function.chunk.code)
+            );
         $endif
 
         OpCode instruction;
-        switch (instruction = (OpCode)read_byte())
+        switch (instruction = (OpCode)read_byte(frame))
         {
+            /* Jump Instructions */
             case JUMP:
             {
-                ushort offset = read_short();
-                vm.ip += offset;
+                ushort offset = read_short(frame);
+                frame.ip += offset;
             }
             case JUMP_IF_FALSE:
             {
-                ushort offset = read_short();
-                if (is_falsey(peek(0))) vm.ip += offset;
+                ushort offset = read_short(frame);
+                if (is_falsey(peek(0))) frame.ip += offset;
             }
             case LOOP:
             {
-                ushort offset = read_short();
-                vm.ip -= offset;
+                ushort offset = read_short(frame);
+                frame.ip -= offset;
             }
+
+            /* Constant Instructions */
             case CONSTANT:
             {
-                Value constant = read_constant();
+                Value constant = read_constant(frame);
                 push(constant);
             }
             case DEFINE_GLOBAL:
             {
-                ObjString *name = read_string();
+                ObjString *name = read_string(frame);
                 vm.globals.set(name, peek(0));
                 pop();
             }
             case GET_GLOBAL:
             {
-                ObjString *name = read_string();
+                ObjString *name = read_string(frame);
                 Value value;
 
                 if (!vm.globals.get(name, &value))
@@ -305,7 +441,7 @@ fn void! run_interpreter() @private
             }
             case SET_GLOBAL:
             {
-                ObjString *name = read_string();
+                ObjString *name = read_string(frame);
                 if (vm.globals.set(name, peek(0)))
                 {
                     vm.globals.delete(name);
@@ -313,16 +449,28 @@ fn void! run_interpreter() @private
                     return VMResult.RUNTIME_ERROR?;
                 }
             }
+
+            /* Byte Instructions */
+            case CALL:
+            {
+                int argc = read_byte(frame);
+                if (!call_value(peek(argc), argc))
+                    { return VMResult.RUNTIME_ERROR?; }
+
+                frame = &vm.frames[vm.frame_count - 1];
+            }
             case GET_LOCAL:
             {
-                char slot = read_byte();
-                push(vm.stack[slot]);
+                char slot = read_byte(frame);
+                push(frame.slots[slot]);
             }
             case SET_LOCAL:
             {
-                char slot = read_byte();
-                vm.stack[slot] = peek(0);
+                char slot = read_byte(frame);
+                frame.slots[slot] = peek(0);
             }
+
+            /* Simple Instructions */
             case NIL:       push(nil_val());
             case TRUE:      push(bool_val(true));
             case FALSE:     push(bool_val(false));
@@ -394,7 +542,22 @@ fn void! run_interpreter() @private
                 value::print(pop());
                 io::printn();
             }
-            case RETURN:    return;
+            case RETURN:
+            {
+                Value result = pop();
+                vm.frame_count--;
+
+                if (vm.frame_count == 0)
+                {
+                    pop();
+                    return;
+                }
+
+                vm.stack_top = frame.slots;
+                push(result);
+
+                frame = &vm.frames[vm.frame_count - 1];
+            }
         }
     }
 }

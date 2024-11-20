@@ -107,10 +107,20 @@ fn void free_object(Obj *object) @local
 {
     switch (object.type)
     {
+        case FUNCTION:
+        {
+            ObjFunction *function = (ObjFunction *)object;
+            function.chunk.free();
+            free_ptr(ObjFunction, object);
+        }
+        case NATIVE:
+            free_ptr(ObjNative, object);
         case STRING:
+        {
             ObjString *string = (ObjString *)object;
             free_array(char, string.chars, string.length + 1);
             free_ptr(ObjString, object);
+        }
     }
 }
 

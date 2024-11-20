@@ -27,6 +27,7 @@ enum OpCode : char
     SET_GLOBAL,
 
     /* Byte Instructions (2 bytes) */
+    CALL,
     GET_LOCAL,
     SET_LOCAL,
 
@@ -244,6 +245,8 @@ fn int Chunk.disassemble_instruction(&self, int offset)
             return constant_instruction("GET GLOBAL", self, offset);
         case SET_GLOBAL:
             return constant_instruction("SET GLOBAL", self, offset);
+        case CALL:
+            return byte_instruction("CALL", self, offset);
         case GET_LOCAL:
             return byte_instruction("GET LOCAL", self, offset);
         case SET_LOCAL:
