@@ -345,7 +345,7 @@ fn int closure_instruction(Chunk *chunk, int offset) @private
         int index = chunk.code[offset++];
 
         io::eprintfn(
-            "%04d     |                    %s %d",
+            "%04d    |                     %s %d",
             offset - 2,
             is_local ? "local" : "upvalue",
             index
