@@ -76,8 +76,8 @@ fn void runtime(String fmt, args...)
     for (int i = vm.frame_count - 1; i >= 0; i--)
     {
         CallFrame *frame = &vm.frames[i];
-        ObjFunction *function = frame.function;
-        int instruction = (int)(frame.ip - frame.function.chunk.code - 1);
+        ObjFunction *function = frame.closure.function;
+        int instruction = (int)(frame.ip - function.chunk.code - 1);
 
         io::eprintf("[line %d] in ", function.chunk.get_line(instruction));
         if (function.name == null)

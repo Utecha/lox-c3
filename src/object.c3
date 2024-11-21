@@ -22,7 +22,6 @@ import std::io @norecurse;
 macro obj_type(value) @builtin
     => as_obj(value).type;
 
-
 <*
     Returns 'true' if the provided [value] is an (Obj), AND if the [type] of said (Obj)
     matches the provided [type].
@@ -34,6 +33,15 @@ fn bool is_obj_type(Value value, ObjType type) @local
 {
     return is_obj(value) && as_obj(value).type == type;
 }
+
+<*
+    Returns 'true' if the provided [value] is of the type (CLOSURE). Otherwise,
+    it returns 'false'.
+
+    @param value "The value to type check as a closure"
+*>
+macro is_closure(value) @builtin
+    => is_obj_type(value, ObjType.CLOSURE);
 
 <*
     Returns 'true' if the provided [value] is of the type (FUNCTION). Otherwise,
@@ -61,6 +69,15 @@ macro is_native(value) @builtin
 *>
 macro is_string(value) @builtin
     => is_obj_type(value, ObjType.STRING);
+
+<*
+    Take's a [value] that is expected to be a valid pointer to an (ObjClosure)
+    and casts it to an (ObjClosure *) for other use.
+
+    @param value "The value to cast"
+*>
+macro as_closure(value) @builtin
+    => (ObjClosure *)as_obj(value);
 
 <*
     Take's a [value] that is expected to be a valid pointer to an (ObjFunction)
@@ -105,9 +122,11 @@ macro as_cstring(value) @builtin
 *>
 enum ObjType : int
 {
+    CLOSURE,
     FUNCTION,
     NATIVE,
-    STRING
+    STRING,
+    UPVALUE
 }
 
 <*
@@ -129,12 +148,28 @@ struct Obj
 }
 
 <*
+    The object structure representing a (Closure) in Lox.
+
+    NOTE: The function contained within a closure stores its own [upvalue_count] field.
+    It exists within the closure itself as well in the event the GC needs to know
+    the size of the upvalue array after the closures function has been freed.
+*>
+struct ObjClosure
+{
+    Obj obj;
+    ObjFunction *function;
+    ObjUpvalue **upvalues;
+    int upvalue_count;
+}
+
+<*
     The object structure representing a (Function) in Lox.
 *>
 struct ObjFunction
 {
     Obj obj;
     int arity;
+    int upvalue_count;
     Chunk chunk;
     ObjString *name;
 }
@@ -165,6 +200,17 @@ struct ObjString
 }
 
 <*
+    The object structure representing an (Upvalue) in Lox.
+*>
+struct ObjUpvalue
+{
+    Obj obj;
+    Value *location;
+    Value closed;
+    ObjUpvalue *next;
+}
+
+<*
     Allocates a generic (Obj) on the heap.
 
     This is wrapped by a macro that provides the necessary arguments and correctly
@@ -183,12 +229,33 @@ fn Obj *allocate_object(usz size, ObjType type)
 }
 
 <*
+    Allocates a new (ObjClosure) on the heap and returns the pointer.
+
+    @param [&in] function "The function being enclosed"
+*>
+fn ObjClosure *new_closure(ObjFunction *function)
+{
+    ObjUpvalue **upvalues = memory::allocate(ObjUpvalue *, function.upvalue_count);
+    for (int i = 0; i < function.upvalue_count; i++)
+    {
+        upvalues[i] = null;
+    }
+
+    ObjClosure *closure = allocate_obj(ObjClosure, ObjType.CLOSURE);
+    closure.function = function;
+    closure.upvalues = upvalues;
+    closure.upvalue_count = function.upvalue_count;
+    return closure;
+}
+
+<*
     Allocates a new (ObjFunction) on the heap and returns the pointer.
 *>
 fn ObjFunction *new_function()
 {
     ObjFunction *function = allocate_obj(ObjFunction, ObjType.FUNCTION);
     function.arity = 0;
+    function.upvalue_count = 0;
     function.chunk.init();
     function.name = null;
     return function;
@@ -196,12 +263,28 @@ fn ObjFunction *new_function()
 
 <*
     Allocates a new (ObjNative) on the heap and returns the pointer.
+
+    @param function "A pointer to a native C3 function"
 *>
 fn ObjNative *new_native(NativeFn function)
 {
     ObjNative *native = allocate_obj(ObjNative, ObjType.NATIVE);
     native.function = function;
     return native;
+}
+
+<*
+    Allocates a new (ObjUpvalue) on the heap and returns the pointer.
+
+    @param [&in] slot "The address of the upvalue being allocated"
+*>
+fn ObjUpvalue *new_upvalue(Value *slot)
+{
+    ObjUpvalue *upvalue = allocate_obj(ObjUpvalue, ObjType.UPVALUE);
+    upvalue.location = slot;
+    upvalue.closed = nil_val();
+    upvalue.next = null;
+    return upvalue;
 }
 
 <*
@@ -318,11 +401,15 @@ fn void print(Value value, OutStream stream = io::stdout())
 {
     switch (obj_type(value))
     {
+        case CLOSURE:
+            print_function(as_closure(value).function, stream);
         case FUNCTION:
             print_function(as_function(value), stream);
         case NATIVE:
             (void) io::fprintf(stream, "<native fn>");
         case STRING:
             (void) io::fprintf(stream, "%s", (ZString)as_cstring(value));
+        case UPVALUE:
+            (void) io::fprintf(stream, "upvalue");
     }
 }

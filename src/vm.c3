@@ -44,7 +44,7 @@ fault VMResult
 *>
 struct CallFrame
 {
-    ObjFunction *function;
+    ObjClosure *closure;
     char *ip;
     Value *slots;
 }
@@ -70,6 +70,7 @@ struct LoxVM
 
     Table globals;
     Table strings;
+    ObjUpvalue *open_upvalues;
     Obj *objects;
 }
 
@@ -97,6 +98,7 @@ fn void reset_stack() @private
 {
     vm.stack_top = &vm.stack[0];
     vm.frame_count = 0;
+    vm.open_upvalues = null;
 }
 
 <*
@@ -140,7 +142,10 @@ fn void! interpret(char *source)
     if (function == null) return VMResult.COMPILE_ERROR?;
 
     push(obj_val(function));
-    call(function, 0);
+    ObjClosure *closure = object::new_closure(function);
+    pop();
+    push(obj_val(closure));
+    call(closure, 0);
 
     return run_interpreter()!;
 }
@@ -183,14 +188,18 @@ fn Value peek(int distance) @local
 
     This initializes the next call frame on the VMs stack.
 
-    @param [&in] function "A reference to the function being called"
+    @param [&in] closure "A reference to the closure being called"
     @param argc "The argument count of the function"
 *>
-fn bool call(ObjFunction *function, int argc) @local
+fn bool call(ObjClosure *closure, int argc) @local
 {
-    if (argc != function.arity)
+    if (argc != closure.function.arity)
     {
-        error::runtime("Expected %d arguments, but got %d instead", function.arity, argc);
+        error::runtime(
+            "Expected %d arguments, but got %d instead",
+            closure.function.arity,
+            argc
+        );
         return false;
     }
 
@@ -201,8 +210,8 @@ fn bool call(ObjFunction *function, int argc) @local
     }
 
     CallFrame *frame = &vm.frames[vm.frame_count++];
-    frame.function = function;
-    frame.ip = function.chunk.code;
+    frame.closure = closure;
+    frame.ip = closure.function.chunk.code;
     frame.slots = vm.stack_top - argc - 1;
     return true;
 }
@@ -217,8 +226,8 @@ fn bool call_value(Value callee, int argc) @local
     {
         switch (obj_type(callee))
         {
-            case FUNCTION:
-                return call(as_function(callee), argc);
+            case CLOSURE:
+                return call(as_closure(callee), argc);
             case NATIVE:
             {
                 NativeFn native = as_native(callee);
@@ -237,6 +246,55 @@ fn bool call_value(Value callee, int argc) @local
 }
 
 <*
+    Creates and returns a new (ObjUpvalue) when a [local] is captured. If the upvalue
+    already exists, it is returned instead.
+
+    @param [&in] local "The local variable to capture"
+*>
+fn ObjUpvalue *capture_upvalue(Value *local)
+{
+    ObjUpvalue *prev_upvalue = null;
+    ObjUpvalue *upvalue = vm.open_upvalues;
+
+    while (upvalue != null && upvalue.location > local)
+    {
+        prev_upvalue = upvalue;
+        upvalue = upvalue.next;
+    }
+
+    if (upvalue != null && upvalue.location == local)
+    {
+        return upvalue;
+    }
+
+    ObjUpvalue *created_upvalue = object::new_upvalue(local);
+
+    if (prev_upvalue == null)
+        { vm.open_upvalues = created_upvalue; }
+    else
+        { prev_upvalue.next = created_upvalue; }
+
+    return created_upvalue;
+}
+
+<*
+    When a local variable is captured, it is made into an upvalue. Before that upvalue leaves the stack,
+    it is closed over, which hoists it onto the heap so that it may still be referenced.
+
+    @param [&in] last "A pointer to the value at the last slot to check for upvalues"
+*>
+fn void close_upvalues(Value *last)
+{
+    while (vm.open_upvalues != null && vm.open_upvalues.location >= last)
+    {
+        ObjUpvalue *upvalue = vm.open_upvalues;
+        upvalue.closed = *upvalue.location;
+        upvalue.location = &upvalue.closed;
+        vm.open_upvalues = upvalue.next;
+    }
+}
+
+<*
     Takes in a [name] and a pointer to a [function], pushing them onto the stack long
     enough to add them to the VMs global variables table.
 
@@ -249,7 +307,7 @@ fn bool call_value(Value callee, int argc) @local
     Since natives are stored in the globals table, they are freed along with the rest of
     the globals.
 *>
-fn void define_native(String name, NativeFn function) @private
+fn void define_native(String name, NativeFn function) @local
 {
     push(obj_val(object::copy_string(name, name.len)));
     push(obj_val(object::new_native(function)));
@@ -322,7 +380,7 @@ macro read_short(CallFrame *frame) @local
 *>
 macro read_constant(CallFrame *frame) @local
 {
-    return frame.function.chunk.constants.values[read_byte(frame)];
+    return frame.closure.function.chunk.constants.values[read_byte(frame)];
 }
 
 <*
@@ -389,8 +447,8 @@ fn void! run_interpreter() @private
             }
             io::eprintfn("");
 
-            frame.function.chunk.disassemble_instruction(
-                (int)(frame.ip - frame.function.chunk.code)
+            frame.closure.function.chunk.disassemble_instruction(
+                (int)(frame.ip - frame.closure.function.chunk.code)
             );
         $endif
 
@@ -415,6 +473,27 @@ fn void! run_interpreter() @private
             }
 
             /* Constant Instructions */
+            case CLOSURE:
+            {
+                ObjFunction *function = as_function(read_constant(frame));
+                ObjClosure *closure = object::new_closure(function);
+                push(obj_val(closure));
+
+                for (int i = 0; i < closure.upvalue_count; i++)
+                {
+                    char is_local = read_byte(frame);
+                    char index = read_byte(frame);
+
+                    if (is_local)
+                    {
+                        closure.upvalues[i] = capture_upvalue(frame.slots + index);
+                    }
+                    else
+                    {
+                        closure.upvalues[i] = frame.closure.upvalues[index];
+                    }
+                }
+            }
             case CONSTANT:
             {
                 Value constant = read_constant(frame);
@@ -449,6 +528,16 @@ fn void! run_interpreter() @private
                     return VMResult.RUNTIME_ERROR?;
                 }
             }
+            case GET_UPVALUE:
+            {
+                char slot = read_byte(frame);
+                push(*frame.closure.upvalues[slot].location);
+            }
+            case SET_UPVALUE:
+            {
+                char slot = read_byte(frame);
+                *frame.closure.upvalues[slot].location = peek(0);
+            }
 
             /* Byte Instructions */
             case CALL:
@@ -471,6 +560,11 @@ fn void! run_interpreter() @private
             }
 
             /* Simple Instructions */
+            case CLOSE_UPVALUE:
+            {
+                close_upvalues(vm.stack_top - 1);
+                pop();
+            }
             case NIL:       push(nil_val());
             case TRUE:      push(bool_val(true));
             case FALSE:     push(bool_val(false));
@@ -545,6 +639,7 @@ fn void! run_interpreter() @private
             case RETURN:
             {
                 Value result = pop();
+                close_upvalues(frame.slots);
                 vm.frame_count--;
 
                 if (vm.frame_count == 0)

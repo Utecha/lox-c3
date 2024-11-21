@@ -107,6 +107,12 @@ fn void free_object(Obj *object) @local
 {
     switch (object.type)
     {
+        case CLOSURE:
+        {
+            ObjClosure *closure = (ObjClosure *)object;
+            free_array(ObjUpvalue *, closure.upvalues, closure.upvalue_count);
+            free_ptr(ObjClosure, object);
+        }
         case FUNCTION:
         {
             ObjFunction *function = (ObjFunction *)object;
@@ -121,6 +127,8 @@ fn void free_object(Obj *object) @local
             free_array(char, string.chars, string.length + 1);
             free_ptr(ObjString, object);
         }
+        case UPVALUE:
+            free_ptr(ObjUpvalue, object);
     }
 }
 

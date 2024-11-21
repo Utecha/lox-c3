@@ -1,5 +1,6 @@
 module lox::chunk;
 import lox::memory;
+import lox::object;
 import lox::value;
 
 //===----------------===//
@@ -21,10 +22,13 @@ enum OpCode : char
     LOOP,           // Multi-conditional reverse jump
 
     /* Constant Instructions (2 bytes) */
+    CLOSURE,
     CONSTANT,
     DEFINE_GLOBAL,
     GET_GLOBAL,
     SET_GLOBAL,
+    GET_UPVALUE,
+    SET_UPVALUE,
 
     /* Byte Instructions (2 bytes) */
     CALL,
@@ -32,6 +36,7 @@ enum OpCode : char
     SET_LOCAL,
 
     /* Simple Instructions (1 byte) */
+    CLOSE_UPVALUE,
     NOT,
     NIL,
     TRUE,
@@ -140,12 +145,19 @@ fn void Chunk.write(&self, char byte, int line)
 }
 
 <*
-    Typecasts an (OpCode) to (char).
+    Typecasts a value to (char).
+
+    NOTE: This is not to be confused with the 'Value' from Lox.
+    This refers to a literal C3 value.
+
+    @param value "The value to typecast to char"
 *>
-macro to_byte(opcode) @builtin => (char)opcode;
+macro to_byte(value) @builtin => (char)value;
 
 <*
     Typecasts a (char) to an (OpCode).
+
+    @param byte "The byte to typecast to an OpCode"
 *>
 macro to_opcode(byte) @builtin => (OpCode)byte;
 
@@ -191,6 +203,7 @@ fn int Chunk.get_line(&self, int offset)
 //===----------------------------------------------------------------------===//
 module lox::chunk @if($feature(DEBUG) &&& (DUMP_CHUNK ||| TRACE_INSTRUCTIONS));
 import lox::common;
+import lox::object;
 import lox::value;
 import std::io @norecurse;
 
@@ -237,6 +250,8 @@ fn int Chunk.disassemble_instruction(&self, int offset)
             return jump_instruction("JUMP IF FALSE", 1, self, offset);
         case LOOP:
             return jump_instruction("LOOP", -1, self, offset);
+        case CLOSURE:
+            return closure_instruction(self, offset);
         case CONSTANT:
             return constant_instruction("CONSTANT", self, offset);
         case DEFINE_GLOBAL:
@@ -245,12 +260,18 @@ fn int Chunk.disassemble_instruction(&self, int offset)
             return constant_instruction("GET GLOBAL", self, offset);
         case SET_GLOBAL:
             return constant_instruction("SET GLOBAL", self, offset);
+        case GET_UPVALUE:
+            return byte_instruction("GET UPVALUE", self, offset);
+        case SET_UPVALUE:
+            return byte_instruction("SET UPVALUE", self, offset);
         case CALL:
             return byte_instruction("CALL", self, offset);
         case GET_LOCAL:
             return byte_instruction("GET LOCAL", self, offset);
         case SET_LOCAL:
             return byte_instruction("SET LOCAL", self, offset);
+        case CLOSE_UPVALUE:
+            return simple_instruction("CLOSE_UPVALUE", offset);
         case NOT:
             return simple_instruction("NOT", offset);
         case NIL:
@@ -303,6 +324,38 @@ fn int byte_instruction(String name, Chunk *chunk, int offset) @private
 }
 
 <*
+    Disassembles a closure (2 byte) instruction.
+
+    @param [&in] chunk "A reference to the chunk to disassemble"
+    @param offset "The index of the instruction in the bytecode array"
+*>
+fn int closure_instruction(Chunk *chunk, int offset) @private
+{
+    offset++;
+    char constant = chunk.code[offset++];
+
+    io::eprintf("%-16s %4d ", "CLOSURE", constant);
+    value::print(chunk.constants.values[constant], io::stderr());
+    io::eprintf("\n");
+
+    ObjFunction *function = as_function(chunk.constants.values[constant]);
+    for (int j = 0; j < function.upvalue_count; j++)
+    {
+        int is_local = chunk.code[offset++];
+        int index = chunk.code[offset++];
+
+        io::eprintfn(
+            "%04d     |                    %s %d",
+            offset - 2,
+            is_local ? "local" : "upvalue",
+            index
+        );
+    }
+
+    return offset;
+}
+
+<*
     Disassembles a constant (2 byte) instruction.
 
     @param name "The name of the instruction"
@@ -350,6 +403,10 @@ fn int jump_instruction(String name, int sign, Chunk *chunk, int offset) @privat
 *>
 fn int simple_instruction(String name, int offset) @private
 {
-    io::eprintfn("%s", name);
+    if (name == "RETURN")
+        { io::eprintfn("%s\n", name); }
+    else
+        { io::eprintfn("%s", name); }
+
     return offset + 1;
 }

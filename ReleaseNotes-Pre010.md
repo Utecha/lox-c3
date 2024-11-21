@@ -11,6 +11,7 @@
 - [Build 0.0.65](#build-0-0-65)
 - [Build 0.0.7](#build-0-0-7)
 - [Build 0.0.75](#build-0-0-75)
+- [Build 0.0.8](#build-0-0-8)
 
 ## Build 0-0-1
 
@@ -164,3 +165,25 @@ be working on post '0.1.0'.
 
 Speaking of which, it's probably time that I mention.. Post 0.1.0 will actually be under a different name and have its own separate repo altogether. I will add that repo as a submodule of this one so it
 wont be difficult to find.
+
+## Build 0-0-8
+
+This build is in line with [Chapter 26](https://craftinginterpreters.com/closures.html#top) of the book.
+
+This chapter added closures, and the concept of upvalues (shoutout to Lua). An upvalue is a local variable that is referenced within an enclosed function, that would otherwise no longer be on the VMs stack. The local is then captured, and "closed" which hoists it onto the heap, making it still accessible.
+
+Closures effectively allow functions to be defined within functions. For example:
+
+```
+fun outer() {
+    var outside = "outside";
+
+    fun inner() {
+        print outside;
+    }
+
+    return inner;
+}
+```
+
+The next build introduces the garbage collector to the language. Afterwards come classes, instances, and methods. Then, optimizations.
