@@ -12,6 +12,7 @@
 - [Build 0.0.7](#build-0-0-7)
 - [Build 0.0.75](#build-0-0-75)
 - [Build 0.0.8](#build-0-0-8)
+- [Build 0.0.85](#build-0-0-85)
 
 ## Build 0-0-1
 
@@ -160,8 +161,7 @@ print clock() - start;
 
 This would display the amount of time (in seconds) that the code in-between the two calls to 'clock' took to execute.
 
-I have little desire to really add any more than that one at this point. Ideally, I'd want to set it up so that natives (and user functions, for that matter) can be variadic. That is all things I will
-be working on post '0.1.0'.
+I have little desire to really add any more than that one at this point. Ideally, I'd want to set it up so that natives (and user functions, for that matter) can be variadic. That is all things I will be working on post '0.1.0'.
 
 Speaking of which, it's probably time that I mention.. Post 0.1.0 will actually be under a different name and have its own separate repo altogether. I will add that repo as a submodule of this one so it
 wont be difficult to find.
@@ -187,3 +187,9 @@ fun outer() {
 ```
 
 The next build introduces the garbage collector to the language. Afterwards come classes, instances, and methods. Then, optimizations.
+
+## Build 0-0-85
+
+This build is in line with [Chapter 26](https://craftinginterpreters.com/garbage-collection.html#top) of the book.
+
+Fully implemented the mark-sweep style garbage collector.

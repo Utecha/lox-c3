@@ -251,3 +251,31 @@ fn ObjString *Table.find_string(&self, char *chars, int len, uint hash)
         index = (index + 1) & (self.capacity - 1);
     }
 }
+
+<*
+    Marks roots within a given [table].
+
+    @param [&in] table "The table to check and mark roots for"
+*>
+fn void mark_table(Table *table)
+{
+    for (int i = 0; i < table.capacity; i++)
+    {
+        Entry *entry = &table.entries[i];
+        memory::mark_object((Obj *)entry.key);
+        memory::mark_value(entry.value);
+    }
+}
+
+<*
+    Frees any 'white' strings in a [table] during a GC cycle.
+*>
+fn void remove_white(Table *table)
+{
+    for (int i = 0; i < table.capacity; i++)
+    {
+        Entry *entry = &table.entries[i];
+        if (entry.key != null && !entry.key.obj.is_marked)
+            { table.delete(entry.key); }
+    }
+}

@@ -3,7 +3,7 @@ import std::io;
 
 const int LOX_VERSION_MAJOR = 0;
 const int LOX_VERSION_MINOR = 0;
-const int LOX_VERSION_PATCH = 8;
+const int LOX_VERSION_PATCH = 85;
 const String LOX_VERSION    = "%d.%d.%d";
 
 <*
@@ -49,10 +49,17 @@ fn void! run_file(String filepath) @local
 *>
 fn void repl() @local
 {
-    io::printfn(
+    io::printf(
         "[ Lox REPL ] Version %s",
         string::tformat(LOX_VERSION, LOX_VERSION_MAJOR, LOX_VERSION_MINOR, LOX_VERSION_PATCH)
     );
+
+    $if $feature(DEBUG):
+        io::printfn(" [ DEBUG MODE ]");
+    $else
+        io::printn();
+    $endif
+
     io::printn("Press Ctrl-D or enter 'exit' to exit.\n");
 
     for (;;)

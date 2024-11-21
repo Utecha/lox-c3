@@ -2,6 +2,7 @@ module lox::chunk;
 import lox::memory;
 import lox::object;
 import lox::value;
+import lox::vm;
 
 //===----------------===//
 //   Operation Codes
@@ -169,7 +170,9 @@ macro to_opcode(byte) @builtin => (OpCode)byte;
 *>
 fn int Chunk.add_constant(&self, Value value)
 {
+    vm::push(value);
     self.constants.append(value);
+    vm::pop();
     return self.constants.count - 1;
 }
 

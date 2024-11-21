@@ -1,7 +1,7 @@
 {
   "langrev": "1",
   "authors": [ "Chandler Warner <cwarneratwork@proton.me>" ],
-  "version": "0.0.8",
+  "version": "0.0.85",
   "warnings": [ "no-unused" ],
   "dependency-search-paths": [ "lib" ],
   "dependencies": [ ],

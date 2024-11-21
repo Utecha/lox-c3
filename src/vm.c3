@@ -72,6 +72,13 @@ struct LoxVM
     Table strings;
     ObjUpvalue *open_upvalues;
     Obj *objects;
+
+    int gray_capacity;
+    int gray_count;
+    Obj **gray_stack;
+
+    usz bytes_allocated;
+    usz next_gc;
 }
 
 <* Global Lox VM *>
@@ -111,6 +118,11 @@ fn void init()
     vm.globals.init();
     vm.strings.init();
     vm.objects = null;
+    vm.gray_capacity = 0;
+    vm.gray_count = 0;
+    vm.gray_stack = null;
+    vm.bytes_allocated = 0;
+    vm.next_gc = 1024 * 1024;
 
     define_native("clock", &clock_native);
 }
@@ -336,8 +348,8 @@ fn bool is_falsey(Value value) @local
 *>
 fn void concatenate() @local
 {
-    ObjString *b = as_string(pop());
-    ObjString *a = as_string(pop());
+    ObjString *b = as_string(peek(0));
+    ObjString *a = as_string(peek(1));
 
     int len = a.length + b.length;
     char *chars = memory::allocate(char, len + 1);
@@ -346,6 +358,9 @@ fn void concatenate() @local
     chars[len] = '\0';
 
     ObjString *result = object::take_string(chars, len);
+    pop();
+    pop();
+
     push(obj_val(result));
 }
 

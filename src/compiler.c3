@@ -3,6 +3,7 @@ import lox::chunk;
 import lox::common;
 import lox::error;
 import lox::lexer;
+import lox::memory;
 import lox::object;
 import lox::value;
 
@@ -1310,4 +1311,17 @@ fn ObjFunction *compile(char *source)
 
     ObjFunction *function = end_compiler();
     return parser.had_error ? null : function;
+}
+
+<*
+    Marks every source of roots found within the compiler chain.
+*>
+fn void mark_compiler_roots()
+{
+    Compiler *compiler = current;
+    while (compiler != null)
+    {
+        memory::mark_object((Obj *)compiler.function);
+        compiler = compiler.enclosing;
+    }
 }

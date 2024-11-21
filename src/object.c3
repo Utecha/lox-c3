@@ -1,5 +1,6 @@
 module lox::object;
 import lox::chunk;
+import lox::common;
 import lox::memory @public;
 import lox::value;
 import lox::vm;
@@ -144,6 +145,7 @@ enum ObjType : int
 struct Obj
 {
     ObjType type;
+    bool is_marked;
     Obj *next;
 }
 
@@ -223,8 +225,14 @@ fn Obj *allocate_object(usz size, ObjType type)
 {
     Obj *object = (Obj *)memory::reallocate(null, 0, size);
     object.type = type;
+    object.is_marked = false;
     object.next = vm.objects;
     vm.objects = object;
+
+    $if $feature(DEBUG) &&& LOG_GC:
+        io::eprintfn("Addr: %p | Allocated %d bytes for %s", (void *)object, size, type);
+    $endif
+
     return object;
 }
 
@@ -312,7 +320,11 @@ fn ObjString *allocate_string(char *chars, int len, uint hash) @private
     string.length = len;
     string.chars = chars;
     string.hash = hash;
+
+    vm::push(obj_val(string));
     vm.strings.set(string, nil_val());
+    vm::pop();
+
     return string;
 }
 
