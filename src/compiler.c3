@@ -69,7 +69,7 @@ ParseRule[*] rules = {
     [TokenType.LBRACE]      = { null,       null,       Precedence.NONE },
     [TokenType.RBRACE]      = { null,       null,       Precedence.NONE },
     [TokenType.COMMA]       = { null,       null,       Precedence.NONE },
-    [TokenType.DOT]         = { null,       null,       Precedence.NONE },
+    [TokenType.DOT]         = { null,       &dot,       Precedence.CALL },
     [TokenType.SEMICOLON]   = { null,       null,       Precedence.NONE },
     [TokenType.COLON]       = { null,       null,       Precedence.NONE },
     [TokenType.QMARK]       = { null,       &ternary,   Precedence.TERNARY },
@@ -533,6 +533,27 @@ fn void call(bool can_assign) @private
 {
     char arg_count = argument_list();
     emit_bytes(to_byte(OpCode.CALL), arg_count);
+}
+
+<*
+    Compiles a dot-syntax expression (e.g. 'person.name').
+
+    @param can_assign "Flag to denote when an expression is assignable"
+*>
+fn void dot(bool can_assign) @private
+{
+    consume(IDENTIFIER, "Expected property name after '.'");
+    char name = identifier_constant(&parser.previous);
+
+    if (can_assign && match(EQUAL))
+    {
+        expression();
+        emit_bytes(to_byte(OpCode.SET_PROPERTY), name);
+    }
+    else
+    {
+        emit_bytes(to_byte(OpCode.GET_PROPERTY), name);
+    }
 }
 
 <*
@@ -1212,6 +1233,8 @@ fn void declaration() @private
 {
     switch
     {
+        case match(TokenType.CLASS):
+            class_declaration();
         case match(TokenType.FUN):
             fun_declaration();
         case match(TokenType.VAR):
@@ -1221,6 +1244,22 @@ fn void declaration() @private
     }
 
     if (parser.panic_mode) synchronize();
+}
+
+<*
+    Compiles a class declaration statement.
+*>
+fn void class_declaration() @private
+{
+    consume(IDENTIFIER, "Expected class name");
+    char name_constant = identifier_constant(&parser.previous);
+    declare_variable();
+
+    emit_bytes(to_byte(OpCode.CLASS), name_constant);
+    define_variable(name_constant);
+
+    consume(LBRACE, "Expected '{' before class body.");
+    consume(RBRACE, "Expected '}' after class body.");
 }
 
 <*

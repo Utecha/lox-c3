@@ -238,6 +238,12 @@ fn bool call_value(Value callee, int argc) @local
     {
         switch (obj_type(callee))
         {
+            case CLASS:
+            {
+                ObjClass *class = as_class(callee);
+                vm.stack_top[-argc - 1] = obj_val(object::new_instance(class));
+                return true;
+            }
             case CLOSURE:
                 return call(as_closure(callee), argc);
             case NATIVE:
@@ -509,6 +515,8 @@ fn void! run_interpreter() @private
                     }
                 }
             }
+            case CLASS:
+                push(obj_val(object::new_class(read_string(frame))));
             case CONSTANT:
             {
                 Value constant = read_constant(frame);
@@ -543,6 +551,44 @@ fn void! run_interpreter() @private
                     return VMResult.RUNTIME_ERROR?;
                 }
             }
+            case GET_PROPERTY:
+            {
+                if (!is_instance(peek(0)))
+                {
+                    error::runtime("Only instances of a class have properties");
+                    return VMResult.RUNTIME_ERROR?;
+                }
+
+                ObjInstance *instance = as_instance(peek(0));
+                ObjString *name = read_string(frame);
+
+                Value value;
+                if (instance.fields.get(name, &value))
+                {
+                    pop();
+                    push(value);
+                    break;
+                }
+
+                error::runtime("Undefined property '%s'", (ZString)name.chars);
+                return VMResult.RUNTIME_ERROR?;
+            }
+            case SET_PROPERTY:
+            {
+                if (!is_instance(peek(1)))
+                {
+                    error::runtime("Only instances of a class have fields");
+                    return VMResult.RUNTIME_ERROR?;
+                }
+
+                ObjInstance *instance = as_instance(peek(1));
+                instance.fields.set(read_string(frame), peek(0));
+                Value value = pop();
+                pop();
+                push(value);
+            }
+
+            /* Byte Instructions */
             case GET_UPVALUE:
             {
                 char slot = read_byte(frame);
@@ -553,8 +599,6 @@ fn void! run_interpreter() @private
                 char slot = read_byte(frame);
                 *frame.closure.upvalues[slot].location = peek(0);
             }
-
-            /* Byte Instructions */
             case CALL:
             {
                 int argc = read_byte(frame);

@@ -1,4 +1,5 @@
 build/lox
 build/testrun
+build/llvm_ir
 Issues.md
 current.lox

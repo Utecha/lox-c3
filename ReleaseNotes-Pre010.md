@@ -13,6 +13,7 @@
 - [Build 0.0.75](#build-0-0-75)
 - [Build 0.0.8](#build-0-0-8)
 - [Build 0.0.85](#build-0-0-85)
+- [Build 0.0.9](#build-0-0-9)
 
 ## Build 0-0-1
 
@@ -174,7 +175,7 @@ This chapter added closures, and the concept of upvalues (shoutout to Lua). An u
 
 Closures effectively allow functions to be defined within functions. For example:
 
-```
+```java
 fun outer() {
     var outside = "outside";
 
@@ -184,6 +185,9 @@ fun outer() {
 
     return inner;
 }
+
+var closure = outer();
+print closure();    // Prints 'outside'
 ```
 
 The next build introduces the garbage collector to the language. Afterwards come classes, instances, and methods. Then, optimizations.
@@ -193,3 +197,13 @@ The next build introduces the garbage collector to the language. Afterwards come
 This build is in line with [Chapter 26](https://craftinginterpreters.com/garbage-collection.html#top) of the book.
 
 Fully implemented the mark-sweep style garbage collector.
+
+## Build 0-0-9
+
+This build is in line with [Chapter 27](https://craftinginterpreters.com/classes-and-instances.html#top) of the book.
+
+This build introduces classes and instances.
+
+Currently, there is no ability to define methods. That comes in the next build.
+
+After that will come *single* inheritance.

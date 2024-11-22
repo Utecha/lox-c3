@@ -22,16 +22,21 @@ enum OpCode : char
     JUMP_IF_FALSE,  // Conditional jump
     LOOP,           // Multi-conditional reverse jump
 
-    /* Constant Instructions (2 bytes) */
+    /* Closure Instruction (2 bytes) */
     CLOSURE,
+
+    /* Constant Instructions (2 bytes) */
+    CLASS,
     CONSTANT,
     DEFINE_GLOBAL,
     GET_GLOBAL,
     SET_GLOBAL,
-    GET_UPVALUE,
-    SET_UPVALUE,
+    GET_PROPERTY,
+    SET_PROPERTY,
 
     /* Byte Instructions (2 bytes) */
+    GET_UPVALUE,
+    SET_UPVALUE,
     CALL,
     GET_LOCAL,
     SET_LOCAL,
@@ -255,6 +260,8 @@ fn int Chunk.disassemble_instruction(&self, int offset)
             return jump_instruction("LOOP", -1, self, offset);
         case CLOSURE:
             return closure_instruction(self, offset);
+        case CLASS:
+            return constant_instruction("CLASS", self, offset);
         case CONSTANT:
             return constant_instruction("CONSTANT", self, offset);
         case DEFINE_GLOBAL:
@@ -263,6 +270,10 @@ fn int Chunk.disassemble_instruction(&self, int offset)
             return constant_instruction("GET GLOBAL", self, offset);
         case SET_GLOBAL:
             return constant_instruction("SET GLOBAL", self, offset);
+        case GET_PROPERTY:
+            return constant_instruction("GET PROPERTY", self, offset);
+        case SET_PROPERTY:
+            return constant_instruction("SET PROPERTY", self, offset);
         case GET_UPVALUE:
             return byte_instruction("GET UPVALUE", self, offset);
         case SET_UPVALUE:

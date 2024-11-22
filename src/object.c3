@@ -2,6 +2,7 @@ module lox::object;
 import lox::chunk;
 import lox::common;
 import lox::memory @public;
+import lox::table;
 import lox::value;
 import lox::vm;
 import std::io @norecurse;
@@ -36,6 +37,15 @@ fn bool is_obj_type(Value value, ObjType type) @local
 }
 
 <*
+    Returns 'true' if the provided [value] is of the type (CLASS). Otherwise,
+    it returns 'false'.
+
+    @param value "The value to type check as a class"
+*>
+macro is_class(value) @builtin
+    => is_obj_type(value, ObjType.CLASS);
+
+<*
     Returns 'true' if the provided [value] is of the type (CLOSURE). Otherwise,
     it returns 'false'.
 
@@ -52,6 +62,15 @@ macro is_closure(value) @builtin
 *>
 macro is_function(value) @builtin
     => is_obj_type(value, ObjType.FUNCTION);
+
+<*
+    Returns 'true' if the provided [value] is of the type (FUNCTION). Otherwise,
+    it returns 'false'.
+
+    @param value "The value to type check as a function"
+*>
+macro is_instance(value) @builtin
+    => is_obj_type(value, ObjType.INSTANCE);
 
 <*
     Returns 'true' if the provided [value] is of the type (NATIVE). Otherwise,
@@ -72,7 +91,16 @@ macro is_string(value) @builtin
     => is_obj_type(value, ObjType.STRING);
 
 <*
-    Take's a [value] that is expected to be a valid pointer to an (ObjClosure)
+    Takes in a [value] that is expected to be a valid pointer to an (ObjClass)
+    and casts it to an (ObjClass *) for other use.
+
+    @param value "The value to cast"
+*>
+macro as_class(value) @builtin
+    => (ObjClass *)as_obj(value);
+
+<*
+    Takes in a [value] that is expected to be a valid pointer to an (ObjClosure)
     and casts it to an (ObjClosure *) for other use.
 
     @param value "The value to cast"
@@ -81,7 +109,7 @@ macro as_closure(value) @builtin
     => (ObjClosure *)as_obj(value);
 
 <*
-    Take's a [value] that is expected to be a valid pointer to an (ObjFunction)
+    Takes in a [value] that is expected to be a valid pointer to an (ObjFunction)
     and casts it to an (ObjFunction *) for other use.
 
     @param value "The value to cast"
@@ -90,17 +118,25 @@ macro as_function(value) @builtin
     => (ObjFunction *)as_obj(value);
 
 <*
-    Take's a [value] that is expected to be a valid pointer to an (ObjNative)
-    and casts it to an (ObjNative *), returning the associated [function]
-    pointer.
+    Takes in a [value] that is expected to be a valid pointer to an (ObjInstance)
+    and casts it to an (ObjInstance *) for other use.
 
-    @param value "The value to return a native function pointer from"
+    @param value "The value to cast"
+*>
+macro as_instance(value) @builtin
+    => (ObjInstance *)as_obj(value);
+
+<*
+    Takes in a [value] that is expected to be a valid pointer to an (ObjNative)
+    and returns the underlying function directly.
+
+    @param value "The value to return the function from"
 *>
 macro as_native(value) @builtin
     => ((ObjNative *)as_obj(value)).function;
 
 <*
-    Take's a [value] that is expected to be a valid pointer to an (ObjString)
+    Takes in a [value] that is expected to be a valid pointer to an (ObjString)
     and casts it to an (ObjString *) for other use.
 
     @param value "The value to cast"
@@ -109,7 +145,7 @@ macro as_string(value) @builtin
     => (ObjString *)as_obj(value);
 
 <*
-    Take's a [value] that is expected to be a valid pointer to an (ObjString)
+    Takes in a [value] that is expected to be a valid pointer to an (ObjString)
     and returns the underlying character array directly.
 
     @param value "The ObjString value to extract the character array from"
@@ -123,8 +159,10 @@ macro as_cstring(value) @builtin
 *>
 enum ObjType : int
 {
+    CLASS,
     CLOSURE,
     FUNCTION,
+    INSTANCE,
     NATIVE,
     STRING,
     UPVALUE
@@ -147,6 +185,15 @@ struct Obj
     ObjType type;
     bool is_marked;
     Obj *next;
+}
+
+<*
+    The object structure representing a (Class) in Lox.
+*>
+struct ObjClass
+{
+    Obj obj;
+    ObjString *name;
 }
 
 <*
@@ -174,6 +221,16 @@ struct ObjFunction
     int upvalue_count;
     Chunk chunk;
     ObjString *name;
+}
+
+<*
+    The object structure representing an (Instance) of a class in Lox.
+*>
+struct ObjInstance
+{
+    Obj obj;
+    ObjClass *class;
+    Table fields;
 }
 
 <*
@@ -237,6 +294,18 @@ fn Obj *allocate_object(usz size, ObjType type)
 }
 
 <*
+    Allocates a new (ObjClass) on the heap and returns the pointer.
+
+    @param [&in] name "The name of the class object"
+*>
+fn ObjClass *new_class(ObjString *name)
+{
+    ObjClass *class = allocate_obj(ObjClass, ObjType.CLASS);
+    class.name = name;
+    return class;
+}
+
+<*
     Allocates a new (ObjClosure) on the heap and returns the pointer.
 
     @param [&in] function "The function being enclosed"
@@ -267,6 +336,14 @@ fn ObjFunction *new_function()
     function.chunk.init();
     function.name = null;
     return function;
+}
+
+fn ObjInstance *new_instance(ObjClass *class)
+{
+    ObjInstance *instance = allocate_obj(ObjInstance, ObjType.INSTANCE);
+    instance.class = class;
+    instance.fields.init();
+    return instance;
 }
 
 <*
@@ -413,10 +490,14 @@ fn void print(Value value, OutStream stream = io::stdout())
 {
     switch (obj_type(value))
     {
+        case CLASS:
+            (void) io::fprintf(stream, "<class %s>", (ZString)as_class(value).name.chars);
         case CLOSURE:
             print_function(as_closure(value).function, stream);
         case FUNCTION:
             print_function(as_function(value), stream);
+        case INSTANCE:
+            (void) io::fprintf(stream, "<instance of class %s>", (ZString)as_instance(value).class.name.chars);
         case NATIVE:
             (void) io::fprintf(stream, "<native fn>");
         case STRING:

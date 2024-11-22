@@ -254,6 +254,11 @@ fn void blacken_object(Obj *object)
 
     switch (object.type)
     {
+        case CLASS:
+        {
+            ObjClass *class = (ObjClass *)object;
+            mark_object((Obj *)class.name);
+        }
         case CLOSURE:
         {
             ObjClosure *closure = (ObjClosure *)object;
@@ -267,6 +272,12 @@ fn void blacken_object(Obj *object)
             ObjFunction *function = (ObjFunction *)object;
             mark_object((Obj *)function.name);
             mark_array(&function.chunk.constants);
+        }
+        case INSTANCE:
+        {
+            ObjInstance *instance = (ObjInstance *)object;
+            mark_object((Obj *)instance.class);
+            table::mark_table(&instance.fields);
         }
         case NATIVE:
         case STRING:
@@ -324,6 +335,8 @@ fn void free_object(Obj *object) @private
 
     switch (object.type)
     {
+        case CLASS:
+            free_ptr(ObjClass, object);
         case CLOSURE:
         {
             ObjClosure *closure = (ObjClosure *)object;
@@ -335,6 +348,12 @@ fn void free_object(Obj *object) @private
             ObjFunction *function = (ObjFunction *)object;
             function.chunk.free();
             free_ptr(ObjFunction, object);
+        }
+        case INSTANCE:
+        {
+            ObjInstance *instance = (ObjInstance *)object;
+            instance.fields.free();
+            free_ptr(ObjInstance, object);
         }
         case NATIVE:
             free_ptr(ObjNative, object);
