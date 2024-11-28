@@ -16,6 +16,7 @@
 - [Build 0.0.9](#build-0-0-9)
 - [Build 0.0.95](#build-0-0-95)
 - [Build 0.0.99](#build-0-0-99)
+- [Release 0.1.0](#release-0-1-0)
 
 ## Build 0-0-1
 
@@ -250,3 +251,22 @@ I'm not currently sure of the cause. I will look into this before I tackle inher
 This build is in line with [Chapter 29](https://craftinginterpreters.com/superclasses.html#top) of the book.
 
 This chapter added inheritance and superclasses. The final chapter is optimization. The completion of that will be a proper release version 0.1.0.
+
+## Release 0-1-0
+
+This release is in line with [Chapter 30](https://craftinginterpreters.com/optimization.html#top) of the book.
+
+I will be adding this to the releases page, which is why this is labelled as 'Release' and not 'Build'.
+
+A few things of note:
+
+1. The optimizations chapter did not really do much when we're talking about C3. I did the modulo operator optimization much earlier than this chapter. When it comes
+to NaN-Boxing, I assume C3 does not have the support built-in to optimize out the 'mem::copy' for number values. I may try using libc's memcpy instead to see if that makes
+a difference. Because it is not optimized out, NaN-Boxed numbers are actually slower. For me, when compiled with 'O5' optimizations, it was about 0.2 seconds faster using
+the traditional struct Value type over the NaN-Boxed variant when running the recursive fibonacci benchmark.
+
+2. The issue causing the compiler to hang on certain errors was fixed. It was related to the error synchronization, where I apparently forgot to make it advance to the
+next token on each iteration. All is well now!
+
+3. This is basically it for Lox. This project will effectively live on in my own scripting language as the two will likely share some code, and for sure share many of
+the things that I learned throughout this project. The languages themselves, though, will certainly be different (though they will both share the C-styling).

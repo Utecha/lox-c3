@@ -1,7 +1,7 @@
 {
   "langrev": "1",
   "authors": ["Chandler Warner <cwarneratwork@proton.me>"],
-  "version": "0.0.99",
+  "version": "0.1.0",
   "warnings": ["no-unused"],
   "dependency-search-paths": ["lib"],
   "dependencies": [],
@@ -15,7 +15,7 @@
     }
   },
   "cpu": "generic",
-  "opt": "O0",
-  "safe": true,
-  "debug-info": "full"
+  "opt": "O5",
+  "safe": false,
+  "debug-info": "none"
 }

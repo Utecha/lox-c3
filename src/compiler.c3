@@ -127,12 +127,6 @@ fn void advance() @private
         parser.current = lexer::get_next_token();
         if (parser.current.type != TokenType.ERROR) break;
 
-        /*
-         * This line is where all lexical errors are reported.
-         *
-         * Any other time error functions are called, they are parsing/compiling stage
-         * errors.
-        */
         error::@current(parser.current.lexeme);
     }
 }
@@ -1471,6 +1465,8 @@ fn void synchronize() @private
             default:
                 ; // Do nothing
         }
+
+        advance();
     }
 }
 

@@ -108,7 +108,7 @@ Lexer lexer @builtin;
 <*
     Initializes the global [lexer] to the start of the source file.
 
-    @param [in] source "The source code to be lexically analyzed"
+    @param [&in] source "The source code to be lexically analyzed"
 *>
 fn void init(char *source)
 {

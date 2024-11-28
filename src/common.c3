@@ -31,6 +31,12 @@ const STRESS_GC             @builtin = false;
 const LOG_GC                @builtin = true;
 
 //===----------------===//
+//  Optimization Flags
+//===----------------===//
+
+const NAN_BOXING            @builtin = true;
+
+//===----------------===//
 //     Misc Flags
 //===----------------===//
 
@@ -39,10 +45,10 @@ const LOG_GC                @builtin = true;
 */
 
 /* Enables the optimization for the negate (-) operator */
-const OPTIMIZE_NEGATION     @builtin = false;
+const OPTIMIZE_NEGATION     @builtin = true;
 
 /* Enables the optimization for the not (!) operator */
-const OPTIMIZE_NOT          @builtin = false;
+const OPTIMIZE_NOT          @builtin = true;
 
 //===----------------===//
 //     Definitions

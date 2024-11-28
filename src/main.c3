@@ -2,8 +2,8 @@ module lox;
 import std::io;
 
 const int LOX_VERSION_MAJOR = 0;
-const int LOX_VERSION_MINOR = 0;
-const int LOX_VERSION_PATCH = 99;
+const int LOX_VERSION_MINOR = 1;
+const int LOX_VERSION_PATCH = 0;
 const String LOX_VERSION    = "%d.%d.%d";
 
 <*
