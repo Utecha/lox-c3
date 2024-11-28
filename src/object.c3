@@ -37,6 +37,15 @@ fn bool is_obj_type(Value value, ObjType type) @local
 }
 
 <*
+    Returns 'true' if the provided [value] is of the type (BOUND_METHOD). Otherwise,
+    it returns 'false'.
+
+    @param value "The value to type check as a bound method"
+*>
+macro is_bound_method(value) @builtin
+    => is_obj_type(value, ObjType.BOUND_METHOD);
+
+<*
     Returns 'true' if the provided [value] is of the type (CLASS). Otherwise,
     it returns 'false'.
 
@@ -89,6 +98,15 @@ macro is_native(value) @builtin
 *>
 macro is_string(value) @builtin
     => is_obj_type(value, ObjType.STRING);
+
+<*
+    Takes in a [value] that is expected to be a valid pointer to an (ObjBoundMethod)
+    and casts it to an (ObjBoundMethod *) for other use.
+
+    @param value "The value to cast"
+*>
+macro as_bound_method(value) @builtin
+    => (ObjBoundMethod *)as_obj(value);
 
 <*
     Takes in a [value] that is expected to be a valid pointer to an (ObjClass)
@@ -159,6 +177,7 @@ macro as_cstring(value) @builtin
 *>
 enum ObjType : int
 {
+    BOUND_METHOD,
     CLASS,
     CLOSURE,
     FUNCTION,
@@ -194,6 +213,17 @@ struct ObjClass
 {
     Obj obj;
     ObjString *name;
+    Table methods;
+}
+
+<*
+    The object structure representing a (BoundMethod) in Lox.
+*>
+struct ObjBoundMethod
+{
+    Obj obj;
+    Value receiver;
+    ObjClosure *method;
 }
 
 <*
@@ -292,6 +322,19 @@ fn Obj *allocate_object(usz size, ObjType type)
 
     return object;
 }
+<*
+    Allocates a new (ObjBoundMethod) on the heap and returns the pointer.
+
+    @param receiver "The value receiving the bound method"
+    @param [&in] method "The method to be bound"
+*>
+fn ObjBoundMethod *new_bound_method(Value receiver, ObjClosure *method)
+{
+    ObjBoundMethod *bound = allocate_obj(ObjBoundMethod, ObjType.BOUND_METHOD);
+    bound.receiver = receiver;
+    bound.method = method;
+    return bound;
+}
 
 <*
     Allocates a new (ObjClass) on the heap and returns the pointer.
@@ -302,6 +345,7 @@ fn ObjClass *new_class(ObjString *name)
 {
     ObjClass *class = allocate_obj(ObjClass, ObjType.CLASS);
     class.name = name;
+    class.methods.init();
     return class;
 }
 
@@ -490,6 +534,8 @@ fn void print(Value value, OutStream stream = io::stdout())
 {
     switch (obj_type(value))
     {
+        case BOUND_METHOD:
+            print_function(as_bound_method(value).method.function, stream);
         case CLASS:
             (void) io::fprintf(stream, "<class %s>", (ZString)as_class(value).name.chars);
         case CLOSURE:

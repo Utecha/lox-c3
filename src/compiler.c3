@@ -101,7 +101,7 @@ ParseRule[*] rules = {
     [TokenType.PRINT]       = { null,       null,       Precedence.NONE },
     [TokenType.RETURN]      = { null,       null,       Precedence.NONE },
     [TokenType.SUPER]       = { null,       null,       Precedence.NONE },
-    [TokenType.THIS]        = { null,       null,       Precedence.NONE },
+    [TokenType.THIS]        = { &this,      null,       Precedence.NONE },
     [TokenType.TRUE]        = { &literal,   null,       Precedence.NONE },
     [TokenType.VAR]         = { null,       null,       Precedence.NONE },
     [TokenType.WHILE]       = { null,       null,       Precedence.NONE },
@@ -220,6 +220,8 @@ struct Upvalue
 enum FunctionType : int
 {
     FUNCTION,
+    INITIALIZER,
+    METHOD,
     SCRIPT
 }
 
@@ -247,6 +249,11 @@ struct Compiler
     int scope_depth;
 }
 
+struct ClassCompiler
+{
+    ClassCompiler *enclosing;
+}
+
 <*
     Global variable used to signify the current compiler.
 
@@ -255,6 +262,15 @@ struct Compiler
     which of those compilers is the 'current' one you should be compiling into.
 *>
 Compiler *current = null;
+
+<*
+    Global variable used to signify the current class compiler.
+
+    Since each class gets its own compiler, and each compiler contains a pointer
+    to its parent (it is a linked-list), this is used to tell the rest of this module
+    which of those compilers is the 'current' one you should be compiling into.
+*>
+ClassCompiler *current_class = null;
 
 <*
     Initializes a new 'Compiler' structure.
@@ -284,7 +300,11 @@ fn void init(Compiler *compiler, FunctionType type)
     }
 
     Local *local = &current.locals[current.local_count++];
-    local.name.lexeme = "";
+    if (type != FunctionType.FUNCTION)
+        { local.name.lexeme = "this"; }
+    else
+        { local.name.lexeme = ""; }
+
     local.depth = 0;
     local.is_captured = false;
 }
@@ -418,7 +438,11 @@ fn void emit_constant(Value value) @private
 *>
 fn void emit_return() @private
 {
-    emit_byte(to_byte(OpCode.NIL));
+    if (current.type == FunctionType.INITIALIZER)
+        { emit_bytes(to_byte(OpCode.GET_LOCAL), 0); }
+    else
+        { emit_byte(to_byte(OpCode.NIL)); }
+
     emit_byte(to_byte(OpCode.RETURN));
 }
 
@@ -550,6 +574,12 @@ fn void dot(bool can_assign) @private
         expression();
         emit_bytes(to_byte(OpCode.SET_PROPERTY), name);
     }
+    else if (match(LPAREN))
+    {
+        char argc = argument_list();
+        emit_bytes(to_byte(OpCode.INVOKE), name);
+        emit_byte(argc);
+    }
     else
     {
         emit_bytes(to_byte(OpCode.GET_PROPERTY), name);
@@ -677,6 +707,24 @@ fn void named_variable(Token name, bool can_assign) @private
 fn void variable(bool can_assign) @private
 {
     named_variable(parser.previous, can_assign);
+}
+
+<*
+    Compiles a 'this' expression. 'This' is an internal reference to the class
+    that a property or method is defined on. This also commonly shows up in
+    languages as 'self'.
+
+    @param can_assign "Flag to denote when an expression is assignable"
+*>
+fn void this(bool can_assign) @private
+{
+    if (current_class == null)
+    {
+        error::@previous("Cannot use 'this' outside of a class");
+        return;
+    }
+
+    variable(false);
 }
 
 <*
@@ -1147,6 +1195,25 @@ fn void function(FunctionType type) @private
 }
 
 <*
+    Compiles a method statement.
+*>
+fn void method() @private
+{
+    if (check(FUN))
+        { consume(FUN, "Expected 'fun' before method name"); }
+
+    consume(IDENTIFIER, "Expected method name");
+    char constant = identifier_constant(&parser.previous);
+
+    FunctionType type = FunctionType.METHOD;
+    if (mem::equals(parser.previous.lexeme, "init"))
+        { type = FunctionType.INITIALIZER; }
+
+    function(type);
+    emit_bytes(to_byte(OpCode.METHOD), constant);
+}
+
+<*
     Compiles an 'if-else' statement.
 *>
 fn void if_statement() @private
@@ -1195,6 +1262,11 @@ fn void return_statement() @private
     }
     else
     {
+        if (current.type == FunctionType.INITIALIZER)
+        {
+            error::@previous("Cannot return a value from an initializer");
+        }
+
         expression();
         consume(SEMICOLON, "Expected ';' after 'return' value");
         emit_byte(to_byte(OpCode.RETURN));
@@ -1252,14 +1324,26 @@ fn void declaration() @private
 fn void class_declaration() @private
 {
     consume(IDENTIFIER, "Expected class name");
+    Token class_name = parser.previous;
     char name_constant = identifier_constant(&parser.previous);
     declare_variable();
 
     emit_bytes(to_byte(OpCode.CLASS), name_constant);
     define_variable(name_constant);
 
+    ClassCompiler class_compiler;
+    class_compiler.enclosing = current_class;
+    current_class = &class_compiler;
+
+    named_variable(class_name, false);
     consume(LBRACE, "Expected '{' before class body.");
+    while (!check(RBRACE) && !check(EOF))
+        { method(); }
+
     consume(RBRACE, "Expected '}' after class body.");
+    emit_byte(to_byte(OpCode.POP));
+
+    current_class = current_class.enclosing;
 }
 
 <*

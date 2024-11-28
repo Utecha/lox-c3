@@ -3,7 +3,7 @@ import std::io;
 
 const int LOX_VERSION_MAJOR = 0;
 const int LOX_VERSION_MINOR = 0;
-const int LOX_VERSION_PATCH = 9;
+const int LOX_VERSION_PATCH = 95;
 const String LOX_VERSION    = "%d.%d.%d";
 
 <*

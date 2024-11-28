@@ -14,6 +14,7 @@
 - [Build 0.0.8](#build-0-0-8)
 - [Build 0.0.85](#build-0-0-85)
 - [Build 0.0.9](#build-0-0-9)
+- [Build 0.0.95](#build-0-0-95)
 
 ## Build 0-0-1
 
@@ -207,3 +208,38 @@ This build introduces classes and instances.
 Currently, there is no ability to define methods. That comes in the next build.
 
 After that will come *single* inheritance.
+
+## Build 0-0-95
+
+This build is in line with [Chapter 28](https://craftinginterpreters.com/methods-and-initializers.html#top) of the book.
+
+As of this build, classes and methods have been fully implemented, with the exception of inheritance.
+
+Example:
+
+```javascript
+class Person {
+    init(name, age, height, weight) {
+        this.name = name;
+        this.age = age;
+        this.height = height;
+        this.weight = weight;
+    }
+
+    info() {
+        print this.name;
+        print this.age;
+        print this.height;
+        print this.weight;
+    }
+}
+
+var person = Person("George", 34, 72, 160);
+person.info();
+```
+
+#### Known Issues
+
+As of this chapter, I discovered a bug that comes up occasionally when errors occur, causing the compiler to hang.
+
+I'm not currently sure of the cause. I will look into this before I tackle inheritance and optimization.

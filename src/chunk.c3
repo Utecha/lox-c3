@@ -28,11 +28,15 @@ enum OpCode : char
     /* Constant Instructions (2 bytes) */
     CLASS,
     CONSTANT,
+    METHOD,
     DEFINE_GLOBAL,
     GET_GLOBAL,
     SET_GLOBAL,
     GET_PROPERTY,
     SET_PROPERTY,
+
+    /* Invoke Instruction (3 bytes) */
+    INVOKE,
 
     /* Byte Instructions (2 bytes) */
     GET_UPVALUE,
@@ -264,6 +268,8 @@ fn int Chunk.disassemble_instruction(&self, int offset)
             return constant_instruction("CLASS", self, offset);
         case CONSTANT:
             return constant_instruction("CONSTANT", self, offset);
+        case METHOD:
+            return constant_instruction("METHOD", self, offset);
         case DEFINE_GLOBAL:
             return constant_instruction("DEFINE GLOBAL", self, offset);
         case GET_GLOBAL:
@@ -274,6 +280,8 @@ fn int Chunk.disassemble_instruction(&self, int offset)
             return constant_instruction("GET PROPERTY", self, offset);
         case SET_PROPERTY:
             return constant_instruction("SET PROPERTY", self, offset);
+        case INVOKE:
+            return invoke_instruction("INVOKE", self, offset);
         case GET_UPVALUE:
             return byte_instruction("GET UPVALUE", self, offset);
         case SET_UPVALUE:
@@ -385,6 +393,17 @@ fn int constant_instruction(String name, Chunk *chunk, int offset) @private
     io::eprintfn("'");
 
     return offset + 2;
+}
+
+fn int invoke_instruction(String name, Chunk *chunk, int offset) @private
+{
+    char constant = chunk.code[offset + 1];
+    char argc = chunk.code[offset + 2];
+
+    io::eprintf("%-16s (%d args) %4d '", name, argc, constant);
+    value::print(chunk.constants.values[constant], io::stderr());
+    io::eprintf("'\n");
+    return offset + 3;
 }
 
 <*

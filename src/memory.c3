@@ -172,6 +172,7 @@ fn void mark_roots() @private
 
     table::mark_table(&vm.globals);
     compiler::mark_compiler_roots();
+    mark_object((Obj *)vm.init_string);
 }
 
 <*
@@ -254,10 +255,17 @@ fn void blacken_object(Obj *object)
 
     switch (object.type)
     {
+        case BOUND_METHOD:
+        {
+            ObjBoundMethod *bound = (ObjBoundMethod *)object;
+            mark_value(bound.receiver);
+            mark_object((Obj *)bound.method);
+        }
         case CLASS:
         {
             ObjClass *class = (ObjClass *)object;
             mark_object((Obj *)class.name);
+            table::mark_table(&class.methods);
         }
         case CLOSURE:
         {
@@ -335,8 +343,14 @@ fn void free_object(Obj *object) @private
 
     switch (object.type)
     {
+        case BOUND_METHOD:
+            free_ptr(ObjBoundMethod, object);
         case CLASS:
+        {
+            ObjClass *class = (ObjClass *)object;
+            class.methods.free();
             free_ptr(ObjClass, object);
+        }
         case CLOSURE:
         {
             ObjClosure *closure = (ObjClosure *)object;

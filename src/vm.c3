@@ -70,6 +70,7 @@ struct LoxVM
 
     Table globals;
     Table strings;
+    ObjString *init_string;
     ObjUpvalue *open_upvalues;
     Obj *objects;
 
@@ -117,6 +118,8 @@ fn void init()
 
     vm.globals.init();
     vm.strings.init();
+    vm.init_string = null;
+    vm.init_string = object::copy_string("init", 4);
     vm.objects = null;
     vm.gray_capacity = 0;
     vm.gray_count = 0;
@@ -134,6 +137,7 @@ fn void free()
 {
     vm.globals.free();
     vm.strings.free();
+    vm.init_string = null;
     memory::free_objects();
 }
 
@@ -238,10 +242,28 @@ fn bool call_value(Value callee, int argc) @local
     {
         switch (obj_type(callee))
         {
+            case BOUND_METHOD:
+            {
+                ObjBoundMethod *bound = as_bound_method(callee);
+                vm.stack_top[-argc - 1] = bound.receiver;
+                return call(bound.method, argc);
+            }
             case CLASS:
             {
                 ObjClass *class = as_class(callee);
                 vm.stack_top[-argc - 1] = obj_val(object::new_instance(class));
+
+                Value initializer;
+                if (class.methods.get(vm.init_string, &initializer))
+                {
+                    return call(as_closure(initializer), argc);
+                }
+                else if (argc != 0)
+                {
+                    error::runtime("Expected 0 arguments but got %d instead", argc);
+                    return false;
+                }
+
                 return true;
             }
             case CLOSURE:
@@ -261,6 +283,73 @@ fn bool call_value(Value callee, int argc) @local
 
     error::runtime("You can only call classes, functions, or methods on an instance");
     return false;
+}
+
+<*
+    @param [&in] class "The class to invoke a method from"
+    @param [&in] name "The name of the method to invoke"
+    @param argc "The number of arguments passed to the method"
+*>
+fn bool invoke_from_class(ObjClass *class, ObjString *name, int argc) @local
+{
+    Value method;
+    if (!class.methods.get(name, &method))
+    {
+        error::runtime("Undefined property '%s'", (ZString)name.chars);
+        return false;
+    }
+
+    return call(as_closure(method), argc);
+}
+
+<*
+    Runtime end of an invoke instruction. Grabs the receiver based on the
+    [argc]. If it is an instance, it moves to a separate function to immediately
+    invoke the method. Otherwise, we're dealing with a property access.
+
+    @param [&in] name "The name of the method to invoke"
+    @param argc "The number of arguments supplied to the method"
+*>
+fn bool invoke(ObjString *name, int argc) @local
+{
+    Value receiver = peek(argc);
+    if (!is_instance(receiver))
+    {
+        error::runtime("You can only invoke methods on an instance");
+        return false;
+    }
+
+    ObjInstance *instance = as_instance(receiver);
+
+    Value value;
+    if (instance.fields.get(name, &value))
+    {
+        vm.stack_top[-argc - 1] = value;
+        return call_value(value, argc);
+    }
+
+    return invoke_from_class(instance.class, name, argc);
+}
+
+<*
+    Binds a method by its [name] to the specified [class] object.
+
+    @param [&inout] class "The class to bind the method to"
+    @param [&in] name "The name of the method to bind"
+*>
+fn bool bind_method(ObjClass *class, ObjString *name) @local
+{
+    Value method;
+    if (!class.methods.get(name, &method))
+    {
+        error::runtime("Undefined property '%s'", (ZString)name.chars);
+        return false;
+    }
+
+    ObjBoundMethod *bound = object::new_bound_method(peek(0), as_closure(method));
+    pop();
+    push(obj_val(bound));
+    return true;
 }
 
 <*
@@ -310,6 +399,17 @@ fn void close_upvalues(Value *last)
         upvalue.location = &upvalue.closed;
         vm.open_upvalues = upvalue.next;
     }
+}
+
+<*
+    @param [&in] name "The name of the method to define"
+*>
+fn void define_method(ObjString *name)
+{
+    Value method = peek(0);
+    ObjClass *class = as_class(peek(1));
+    class.methods.set(name, method);
+    pop();
 }
 
 <*
@@ -522,6 +622,17 @@ fn void! run_interpreter() @private
                 Value constant = read_constant(frame);
                 push(constant);
             }
+            case INVOKE:
+            {
+                ObjString *method = read_string(frame);
+                int argc = read_byte(frame);
+
+                if (!invoke(method, argc))
+                    { return VMResult.RUNTIME_ERROR?; }
+
+                frame = &vm.frames[vm.frame_count - 1];
+            }
+            case METHOD:    define_method(read_string(frame));
             case DEFINE_GLOBAL:
             {
                 ObjString *name = read_string(frame);
@@ -570,8 +681,9 @@ fn void! run_interpreter() @private
                     break;
                 }
 
-                error::runtime("Undefined property '%s'", (ZString)name.chars);
-                return VMResult.RUNTIME_ERROR?;
+                if (!bind_method(instance.class, name))
+                    { return VMResult.RUNTIME_ERROR?; }
+                break;
             }
             case SET_PROPERTY:
             {
