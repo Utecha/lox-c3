@@ -22,6 +22,10 @@ enum OpCode : char
     JUMP_IF_FALSE,  // Conditional jump
     LOOP,           // Multi-conditional reverse jump
 
+    /* Invoke Instruction (3 bytes) */
+    INVOKE,
+    SUPER_INVOKE,
+
     /* Closure Instruction (2 bytes) */
     CLOSURE,
 
@@ -34,9 +38,7 @@ enum OpCode : char
     SET_GLOBAL,
     GET_PROPERTY,
     SET_PROPERTY,
-
-    /* Invoke Instruction (3 bytes) */
-    INVOKE,
+    GET_SUPER,
 
     /* Byte Instructions (2 bytes) */
     GET_UPVALUE,
@@ -46,6 +48,7 @@ enum OpCode : char
     SET_LOCAL,
 
     /* Simple Instructions (1 byte) */
+    INHERIT,
     CLOSE_UPVALUE,
     NOT,
     NIL,
@@ -262,6 +265,10 @@ fn int Chunk.disassemble_instruction(&self, int offset)
             return jump_instruction("JUMP IF FALSE", 1, self, offset);
         case LOOP:
             return jump_instruction("LOOP", -1, self, offset);
+        case INVOKE:
+            return invoke_instruction("INVOKE", self, offset);
+        case SUPER_INVOKE:
+            return invoke_instruction("SUPER INVOKE", self, offset);
         case CLOSURE:
             return closure_instruction(self, offset);
         case CLASS:
@@ -280,8 +287,8 @@ fn int Chunk.disassemble_instruction(&self, int offset)
             return constant_instruction("GET PROPERTY", self, offset);
         case SET_PROPERTY:
             return constant_instruction("SET PROPERTY", self, offset);
-        case INVOKE:
-            return invoke_instruction("INVOKE", self, offset);
+        case GET_SUPER:
+            return constant_instruction("GET SUPER", self, offset);
         case GET_UPVALUE:
             return byte_instruction("GET UPVALUE", self, offset);
         case SET_UPVALUE:
@@ -292,6 +299,8 @@ fn int Chunk.disassemble_instruction(&self, int offset)
             return byte_instruction("GET LOCAL", self, offset);
         case SET_LOCAL:
             return byte_instruction("SET LOCAL", self, offset);
+        case INHERIT:
+            return simple_instruction("INHERIT", offset);
         case CLOSE_UPVALUE:
             return simple_instruction("CLOSE_UPVALUE", offset);
         case NOT:

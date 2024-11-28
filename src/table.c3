@@ -212,9 +212,7 @@ fn void Table.add_all(&from, Table *to)
         Entry *entry = &from.entries[i];
 
         if (entry.key != null)
-        {
-            to.set(entry.key, entry.value);
-        }
+            { to.set(entry.key, entry.value); }
     }
 }
 

@@ -593,6 +593,28 @@ fn void! run_interpreter() @private
                 frame.ip -= offset;
             }
 
+            /* Invoke Instructions */
+            case INVOKE:
+            {
+                ObjString *method = read_string(frame);
+                int argc = read_byte(frame);
+
+                if (!invoke(method, argc))
+                    { return VMResult.RUNTIME_ERROR?; }
+
+                frame = &vm.frames[vm.frame_count - 1];
+            }
+            case SUPER_INVOKE:
+            {
+                ObjString *method = read_string(frame);
+                int argc = read_byte(frame);
+                ObjClass *superclass = as_class(pop());
+                if (!invoke_from_class(superclass, method, argc))
+                    { return VMResult.RUNTIME_ERROR?; }
+
+                frame = &vm.frames[vm.frame_count - 1];
+            }
+
             /* Constant Instructions */
             case CLOSURE:
             {
@@ -621,16 +643,6 @@ fn void! run_interpreter() @private
             {
                 Value constant = read_constant(frame);
                 push(constant);
-            }
-            case INVOKE:
-            {
-                ObjString *method = read_string(frame);
-                int argc = read_byte(frame);
-
-                if (!invoke(method, argc))
-                    { return VMResult.RUNTIME_ERROR?; }
-
-                frame = &vm.frames[vm.frame_count - 1];
             }
             case METHOD:    define_method(read_string(frame));
             case DEFINE_GLOBAL:
@@ -699,6 +711,14 @@ fn void! run_interpreter() @private
                 pop();
                 push(value);
             }
+            case GET_SUPER:
+            {
+                ObjString *name = read_string(frame);
+                ObjClass *superclass = as_class(pop());
+
+                if (!bind_method(superclass, name))
+                    { return VMResult.RUNTIME_ERROR?; }
+            }
 
             /* Byte Instructions */
             case GET_UPVALUE:
@@ -731,6 +751,19 @@ fn void! run_interpreter() @private
             }
 
             /* Simple Instructions */
+            case INHERIT:
+            {
+                Value superclass = peek(1);
+                if (!is_class(superclass))
+                {
+                    error::runtime("Superclass must be a class");
+                    return VMResult.RUNTIME_ERROR?;
+                }
+
+                ObjClass *subclass = as_class(peek(0));
+                as_class(superclass).methods.add_all(&subclass.methods);
+                pop();
+            }
             case CLOSE_UPVALUE:
             {
                 close_upvalues(vm.stack_top - 1);

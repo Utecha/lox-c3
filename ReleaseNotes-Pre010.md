@@ -15,6 +15,7 @@
 - [Build 0.0.85](#build-0-0-85)
 - [Build 0.0.9](#build-0-0-9)
 - [Build 0.0.95](#build-0-0-95)
+- [Build 0.0.99](#build-0-0-99)
 
 ## Build 0-0-1
 
@@ -243,3 +244,9 @@ person.info();
 As of this chapter, I discovered a bug that comes up occasionally when errors occur, causing the compiler to hang.
 
 I'm not currently sure of the cause. I will look into this before I tackle inheritance and optimization.
+
+## Build 0-0-99
+
+This build is in line with [Chapter 29](https://craftinginterpreters.com/superclasses.html#top) of the book.
+
+This chapter added inheritance and superclasses. The final chapter is optimization. The completion of that will be a proper release version 0.1.0.
