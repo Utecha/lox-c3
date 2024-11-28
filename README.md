@@ -30,8 +30,7 @@ I included a ```DEBUG``` feature flag that enables the built-in debugger. To ena
 
 In addition to the feature flag, you must edit the ```src/common.c3``` to enable or disable the specific debugging features.
 
-#### NOTE: Running those commands by themselves can be used to build/run the application directly. Simply invoking the compiler will run it in REPL mode. You can optionally
-pass a file to it as an argument, and it will attempt to compile and run that file.
+#### NOTE: Running those commands by themselves can be used to build/run the application directly. Simply invoking the compiler will run it in REPL mode. You can optionally pass a file to it as an argument, and it will attempt to compile and run that file.
 
 If you used the 'build' option, you can then directly run lox from the 'build' directory, with the location of a file as an argument.
 
