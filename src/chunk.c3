@@ -1,454 +1,145 @@
 module lox::chunk;
-import lox::memory;
-import lox::object;
+import lox::common;
+import lox::mem;
 import lox::value;
-import lox::vm;
 
-//===----------------===//
-//   Operation Codes
-//===----------------===//
+//------------------------------------------------------------------------------
+// Lox \ Chunk
+//------------------------------------------------------------------------------
 
-/*
- * Enumerator of Operation Codes defined for the Lox VM.
- *
- * NOTE: Different instructions load different numbers of bytes.
- * Comments within the enum will denote the instruction type as well
- * as the number of bytes associated with each instruction.
-*/
 enum OpCode : char
 {
-    /* Jump Instructions (3 bytes) */
-    JUMP,           // Unconditional jump
-    JUMP_IF_FALSE,  // Conditional jump
-    LOOP,           // Multi-conditional reverse jump
-
-    /* Invoke Instruction (3 bytes) */
-    INVOKE,
-    SUPER_INVOKE,
-
-    /* Closure Instruction (2 bytes) */
-    CLOSURE,
-
-    /* Constant Instructions (2 bytes) */
-    CLASS,
-    CONSTANT,
-    METHOD,
-    DEFINE_GLOBAL,
-    GET_GLOBAL,
-    SET_GLOBAL,
-    GET_PROPERTY,
-    SET_PROPERTY,
-    GET_SUPER,
-
-    /* Byte Instructions (2 bytes) */
-    GET_UPVALUE,
-    SET_UPVALUE,
-    CALL,
-    GET_LOCAL,
-    SET_LOCAL,
-
     /* Simple Instructions (1 byte) */
-    INHERIT,
-    CLOSE_UPVALUE,
-    NOT,
-    NIL,
-    TRUE,
-    FALSE,
-    EQUAL,
-    GREATER,
-    LESS,
-    TERNARY,
-    NEGATE,
+    RETURN,
     ADD,
     SUBTRACT,
     MULTIPLY,
     DIVIDE,
-    MODULUS,
-    POP,
-    PRINT,
-    RETURN,
+    NEGATE,
+
+    /* Constant Instructions (2 bytes) */
+    CONSTANT,
 }
 
-//===----------------===//
-//        Chunk
-//===----------------===//
-
-<*
-    The structure representing compressed line information.
-*>
-struct Line
-{
-    int number;
-    int offset;
-}
-
-<*
-    The structure representing a 'chunk' of Lox bytecode.
-*>
 struct Chunk
 {
-    int capacity;
-    int count;
+    usz capacity;
+    usz size;
     char *code;
-    int line_capacity;
-    int line_count;
-    Line *lines;
+    int *lines;
     ValueList constants;
 }
 
-<*
-    Initializes a new (Chunk).
-
-    @param [&inout] self "A reference to the chunk the method is called on"
-*>
 fn void Chunk.init(&self)
 {
     self.capacity = 0;
-    self.count = 0;
+    self.size = 0;
     self.code = null;
-    self.line_capacity = 0;
-    self.line_count = 0;
     self.lines = null;
     self.constants.init();
 }
 
-<*
-    Free the memory of an exisiting (Chunk).
-
-    @param [&inout] self "A reference to the chunk the method is called on"
-*>
 fn void Chunk.free(&self)
 {
-    memory::free_array(Line, self.lines, self.line_capacity);
-    memory::free_array(char, self.code, self.capacity);
+    self.constants.free();
+    mem::lfree(self.lines, self.capacity);
+    mem::lfree(self.code, self.capacity);
     self.init();
 }
 
-<*
-    Write a byte instruction to the bytecode array of a 'Chunk'.
-
-    @param [&inout] self "A reference to the chunk the method is called on"
-    @param byte "The byte to write to the chunks bytecode array"
-    @param line "The corresponding line number the instruction appears on"
-*>
 fn void Chunk.write(&self, char byte, int line)
 {
-    if (self.capacity < self.count + 1)
+    if (self.capacity < self.size + 1)
     {
-        int old_cap = self.capacity;
-        self.capacity = memory::grow_capacity(old_cap);
-        self.code = memory::grow_array(char, self.code, old_cap, self.capacity);
+        usz old = self.capacity;
+        self.capacity = nextPowOf2(old);
+        self.code = mem::lrealloc(self.code, old, self.capacity);
+        self.lines = mem::lrealloc(self.lines, old, self.capacity);
     }
 
-    if (self.count == 0 || self.lines[self.line_count - 1].number != line)
-    {
-        if (self.line_capacity < self.line_count + 1)
-        {
-            int old_line_cap = self.line_capacity;
-            self.line_capacity = memory::grow_capacity(old_line_cap);
-            self.lines = memory::grow_array(Line, self.lines, old_line_cap, self.line_capacity);
-        }
-
-        self.lines[self.line_count] = { .number = line, .offset = self.count };
-        self.line_count++;
-    }
-
-    self.code[self.count] = byte;
-    self.count++;
+    self.code[self.size] = byte;
+    self.lines[self.size] = line;
+    self.size++;
 }
 
-<*
-    Typecasts a value to (char).
-
-    NOTE: This is not to be confused with the 'Value' from Lox.
-    This refers to a literal C3 value.
-
-    @param value "The value to typecast to char"
-*>
-macro to_byte(value) @builtin => (char)value;
-
-<*
-    Typecasts a (char) to an (OpCode).
-
-    @param byte "The byte to typecast to an OpCode"
-*>
-macro to_opcode(byte) @builtin => (OpCode)byte;
-
-<*
-    Add's a 'Value' to a chunks constants pool and returns the index.
-
-    @param [&inout] self "A reference to the chunk the method is called on"
-    @param value "The value to write to the constants pool"
-*>
-fn int Chunk.add_constant(&self, Value value)
+fn int Chunk.addConstant(&self, Value value)
 {
-    vm::push(value);
     self.constants.append(value);
-    vm::pop();
-    return self.constants.count - 1;
+    return (int)self.constants.len() - 1;
 }
 
-<*
-    Binary-search algorithm for obtaining the a chunks line information.
-
-    @param [&inout] self "A reference to the chunk the method is called on"
-    @param offset "The index within the bytecode array corresponding to a line number"
-*>
-fn int Chunk.get_line(&self, int offset)
+fn char byte(int value) @builtin
 {
-    int start = 0;
-    int end = self.line_count;
-
-    while (start < end)
-    {
-        int mid = (start + end) / 2;
-        Line *line = &self.lines[mid];
-
-        if (offset < line.offset)
-            { end = mid; }
-        else if (mid == self.line_count - 1 || offset < self.lines[mid + 1].offset)
-            { return line.number; }
-        else
-            { start = mid + 1; }
-    }
-
-    return -1;
+    return (char)value;
 }
 
-//===----------------------------------------------------------------------===//
-module lox::chunk @if($feature(DEBUG) &&& (DUMP_CHUNK ||| TRACE_INSTRUCTIONS));
-import lox::common;
-import lox::object;
+//------------------------------------------------------------------------------
+module lox::chunk @if($feature(DEBUG));
 import lox::value;
 import std::io @norecurse;
 
-//===----------------===//
-//     Disassembler
-//===----------------===//
+//------------------------------------------------------------------------------
+// Lox \ Chunk @if DEBUG
+//------------------------------------------------------------------------------
 
-<*
-    Disassembles an entire bytecode 'Chunk'.
-
-    @param [&inout] self "A reference to the chunk the method is called on"
-    @param name "A name for the chunk being disassembled"
-*>
 fn void Chunk.disassemble(&self, String name)
 {
     io::eprintfn("=== %s ===", name);
 
-    for (int offset = 0; offset < self.count;)
-        { offset = self.disassemble_instruction(offset); }
+    for (int offset = 0; offset < self.size;)
+    {
+        offset = self.disassembleInstruction(offset);
+    }
 }
 
-<*
-    Disassembles an individual instruction within a bytecode 'Chunk'.
-
-    @param [&inout] self "A reference to the chunk the method is called on"
-    @param offset "The index of the instruction to disassemble"
-*>
-fn int Chunk.disassemble_instruction(&self, int offset)
+fn int Chunk.disassembleInstruction(&self, int offset)
 {
     io::eprintf("%04d ", offset);
 
-    int line = self.get_line(offset);
-    if (offset > 0 && line == self.get_line(offset - 1))
-        { io::eprintf("   | "); }
+    int line = self.lines[offset];
+    if (offset > 0 && line == self.lines[offset - 1])
+    {
+        io::eprintf("   | ");
+    }
     else
-        { io::eprintf("%4d ", line); }
+    {
+        io::eprintf("%4d ", line);
+    }
 
-    OpCode instruction = (OpCode)self.code[offset];
+    OpCode instruction = OpCode.from_ordinal(self.code[offset]);
     switch (instruction)
     {
-        case JUMP:
-            return jump_instruction("JUMP", 1, self, offset);
-        case JUMP_IF_FALSE:
-            return jump_instruction("JUMP IF FALSE", 1, self, offset);
-        case LOOP:
-            return jump_instruction("LOOP", -1, self, offset);
-        case INVOKE:
-            return invoke_instruction("INVOKE", self, offset);
-        case SUPER_INVOKE:
-            return invoke_instruction("SUPER INVOKE", self, offset);
-        case CLOSURE:
-            return closure_instruction(self, offset);
-        case CLASS:
-            return constant_instruction("CLASS", self, offset);
-        case CONSTANT:
-            return constant_instruction("CONSTANT", self, offset);
-        case METHOD:
-            return constant_instruction("METHOD", self, offset);
-        case DEFINE_GLOBAL:
-            return constant_instruction("DEFINE GLOBAL", self, offset);
-        case GET_GLOBAL:
-            return constant_instruction("GET GLOBAL", self, offset);
-        case SET_GLOBAL:
-            return constant_instruction("SET GLOBAL", self, offset);
-        case GET_PROPERTY:
-            return constant_instruction("GET PROPERTY", self, offset);
-        case SET_PROPERTY:
-            return constant_instruction("SET PROPERTY", self, offset);
-        case GET_SUPER:
-            return constant_instruction("GET SUPER", self, offset);
-        case GET_UPVALUE:
-            return byte_instruction("GET UPVALUE", self, offset);
-        case SET_UPVALUE:
-            return byte_instruction("SET UPVALUE", self, offset);
-        case CALL:
-            return byte_instruction("CALL", self, offset);
-        case GET_LOCAL:
-            return byte_instruction("GET LOCAL", self, offset);
-        case SET_LOCAL:
-            return byte_instruction("SET LOCAL", self, offset);
-        case INHERIT:
-            return simple_instruction("INHERIT", offset);
-        case CLOSE_UPVALUE:
-            return simple_instruction("CLOSE_UPVALUE", offset);
-        case NOT:
-            return simple_instruction("NOT", offset);
-        case NIL:
-            return simple_instruction("NIL", offset);
-        case TRUE:
-            return simple_instruction("TRUE", offset);
-        case FALSE:
-            return simple_instruction("FALSE", offset);
-        case EQUAL:
-            return simple_instruction("EQUAL", offset);
-        case GREATER:
-            return simple_instruction("GREATER", offset);
-        case LESS:
-            return simple_instruction("LESS", offset);
-        case TERNARY:
-            return simple_instruction("TERNARY", offset);
-        case NEGATE:
-            return simple_instruction("NEGATE", offset);
-        case ADD:
-            return simple_instruction("ADD", offset);
-        case SUBTRACT:
-            return simple_instruction("SUBTRACT", offset);
-        case MULTIPLY:
-            return simple_instruction("MULTIPLY", offset);
-        case DIVIDE:
-            return simple_instruction("DIVIDE", offset);
-        case MODULUS:
-            return simple_instruction("MODULUS", offset);
-        case POP:
-            return simple_instruction("POP", offset);
-        case PRINT:
-            return simple_instruction("PRINT", offset);
         case RETURN:
-            return simple_instruction("RETURN", offset);
+            return simpleInstruction("RETURN", offset);
+        case ADD:
+            return simpleInstruction("ADD", offset);
+        case SUBTRACT:
+            return simpleInstruction("SUBTRACT", offset);
+        case MULTIPLY:
+            return simpleInstruction("MULTIPLY", offset);
+        case DIVIDE:
+            return simpleInstruction("DIVIDE", offset);
+        case NEGATE:
+            return simpleInstruction("NEGATE", offset);
+        case CONSTANT:
+            return constantInstruction("CONSTANT", self, offset);
+        default:
+            io::eprintfn("Unknown OpCode: [ %s : %d ]", instruction, self.code[offset]);
+            return offset + 1;
     }
 }
 
-<*
-    Disassembles a byte (simple 2 byte) instruction.
-
-    @param name "The name of the instruction"
-    @param [&in] chunk "A reference to the chunk to disassemble"
-    @param offset "The index of the instruction in the bytecode array"
-*>
-fn int byte_instruction(String name, Chunk *chunk, int offset) @private
-{
-    char slot = chunk.code[offset + 1];
-    io::eprintfn("%-16s %4d", name, slot);
-    return offset + 2;
-}
-
-<*
-    Disassembles a closure (2 byte) instruction.
-
-    @param [&in] chunk "A reference to the chunk to disassemble"
-    @param offset "The index of the instruction in the bytecode array"
-*>
-fn int closure_instruction(Chunk *chunk, int offset) @private
-{
-    offset++;
-    char constant = chunk.code[offset++];
-
-    io::eprintf("%-16s %4d ", "CLOSURE", constant);
-    value::print(chunk.constants.values[constant], io::stderr());
-    io::eprintf("\n");
-
-    ObjFunction *function = as_function(chunk.constants.values[constant]);
-    for (int j = 0; j < function.upvalue_count; j++)
-    {
-        int is_local = chunk.code[offset++];
-        int index = chunk.code[offset++];
-
-        io::eprintfn(
-            "%04d    |                     %s %d",
-            offset - 2,
-            is_local ? "local" : "upvalue",
-            index
-        );
-    }
-
-    return offset;
-}
-
-<*
-    Disassembles a constant (2 byte) instruction.
-
-    @param name "The name of the instruction"
-    @param [&in] chunk "A reference to the chunk to disassemble"
-    @param offset "The index of the instruction in the bytecode array"
-*>
-fn int constant_instruction(String name, Chunk *chunk, int offset) @private
-{
-    int index = chunk.code[offset + 1];
-
-    io::eprintf("%-16s %4d '", name, index);
-    value::print(chunk.constants.values[index], io::stderr());
-    io::eprintfn("'");
-
-    return offset + 2;
-}
-
-fn int invoke_instruction(String name, Chunk *chunk, int offset) @private
+fn int constantInstruction(String name, Chunk *chunk, int offset)
 {
     char constant = chunk.code[offset + 1];
-    char argc = chunk.code[offset + 2];
-
-    io::eprintf("%-16s (%d args) %4d '", name, argc, constant);
-    value::print(chunk.constants.values[constant], io::stderr());
+    io::eprintf("%-16s %4d '", name, constant);
+    value::print(chunk.constants[constant], io::stderr());
     io::eprintf("'\n");
-    return offset + 3;
+    return offset + 2;
 }
 
-<*
-    Disassembles a jump (3 byte) instruction.
-
-    NOTE: The 'sign' in this instance is used to denote in which direction to jump in the code.
-    Jump instructions used in something like an 'if' statement jump forward, so they have a
-    positive (+1) signedness. Jump instructions such as a the 'LOOP' instruction jump backwards,
-    therefore they have a negative (-1) signedness.
-
-    @param name "The name of the instruction"
-    @param sign "A directional (negative or positive) offset denoting the direction the code jumps"
-    @param [&in] chunk "A reference to the chunk to disassemble"
-    @param offset "The index of the instruction in the bytecode array"
-*>
-fn int jump_instruction(String name, int sign, Chunk *chunk, int offset) @private
+fn int simpleInstruction(String name, int offset)
 {
-    ushort jump = (ushort)(chunk.code[offset + 1] << 8);
-    jump |= chunk.code[offset + 2];
-
-    io::eprintfn("%-16s %4d -> %d", name, offset, offset + 3 + sign * jump);
-    return offset + 3;
-}
-
-<*
-    Disassembles a simple (1 byte) instruction.
-
-    @param name "The name of the instruction"
-    @param offset "The index of the instruction in the bytecode array"
-*>
-fn int simple_instruction(String name, int offset) @private
-{
-    if (name == "RETURN")
-        { io::eprintfn("%s\n", name); }
-    else
-        { io::eprintfn("%s", name); }
-
+    io::eprintfn("%s", name);
     return offset + 1;
 }

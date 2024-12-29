@@ -15,7 +15,7 @@
     }
   },
   "cpu": "generic",
-  "opt": "O5",
-  "safe": false,
-  "debug-info": "none"
+  "opt": "O0",
+  "safe": true,
+  "debug-info": "full"
 }

@@ -1,862 +1,145 @@
 module lox::vm;
-import lox::chunk;
 import lox::common;
 import lox::compiler;
-import lox::error;
-import lox::memory;
-import lox::object;
-import lox::table;
+import lox::chunk;
 import lox::value;
 import std::io @norecurse;
-import std::time;
 
-//===----------------===//
-// Lox Virtual Machine
-//===----------------===//
+//------------------------------------------------------------------------------
+// Lox \ VM
+//------------------------------------------------------------------------------
 
-<* The maximum number of call frames allowed at any given point *>
-const uint FRAMES_MAX = 64;
+const uint STACK_MAX = 256;
 
-<* The maximum size of the VMs 'Value' stack *>
-const uint STACK_MAX = FRAMES_MAX * UINT8_COUNT;
-
-<* Fault values returned by the VM under different error conditions (compiler, runtime) *>
-fault VMResult
+fault InterpretError
 {
-    COMPILE_ERROR,
-    RUNTIME_ERROR
+    DIVISION_BY_ZERO
 }
 
-<*
-    Structure representing a call frame.
-
-    When a function is called and it is loaded onto the VMs stack, the VM
-    records the location of the first slot where the functions locals begin.
-
-    Instructions for working with locals will access them by a slot index
-    relative to that location, rather than relative to the bottom of the
-    stack.
-
-    These values are calculated at compile time. At runtime, the relative
-    slot is then converted to an absolute stack index. This is what is
-    known as a 'call frame'. It is a runtime view of a functions instructions
-    relative to the instructions surrounding it.
-*>
-struct CallFrame
-{
-    ObjClosure *closure;
-    char *ip;
-    Value *slots;
-}
-
-<*
-    Structure representing the Lox Virtual Machine
-
-    The VM is essentially the global state machine for a given script. It manages the
-    compilation of the users source code, and loads the resulting data into itself
-    to run inside the interpreter.
-
-    It also handles all of the memory that is allocated and needs to be freed during compile
-    time, runtime, and at the end of the program.
-*>
 struct LoxVM
 {
-    /*  */
-    CallFrame[FRAMES_MAX] frames;
-    int frame_count;
-
+    Chunk *chunk;
+    char *ip;
     Value[STACK_MAX] stack;
-    Value *stack_top;
-
-    Table globals;
-    Table strings;
-    ObjString *init_string;
-    ObjUpvalue *open_upvalues;
-    Obj *objects;
-
-    int gray_capacity;
-    int gray_count;
-    Obj **gray_stack;
-
-    usz bytes_allocated;
-    usz next_gc;
+    Value *stackTop;
 }
 
-<* Global Lox VM *>
-LoxVM vm @builtin;
-
-<*
-    Native 'clock' function. This returns the elapsed time since the program
-    began (or since the function was called), in seconds.
-
-    @param argc "The argument count"
-    @param [&in] args "The arguments passed into the function"
-*>
-fn Value clock_native(int argc, Value *args)
+fn void LoxVM.init(&self)
 {
-    return number_val(time::now().to_seconds() / (double)time::SEC);
+    self.resetStack();
 }
 
-<*
-    Reset's the pointer [vm.stack_top] to the beginning of the VM's [stack].
-
-    @ensure vm.stack_top != null
-*>
-fn void reset_stack() @private
+fn void LoxVM.free(&self)
 {
-    vm.stack_top = &vm.stack[0];
-    vm.frame_count = 0;
-    vm.open_upvalues = null;
+
 }
 
-<*
-    Initializes the global Lox VM.
-*>
-fn void init()
+fn void LoxVM.resetStack(&self)
 {
-    reset_stack();
-
-    vm.globals.init();
-    vm.strings.init();
-    vm.init_string = null;
-    vm.init_string = object::copy_string("init", 4);
-    vm.objects = null;
-    vm.gray_capacity = 0;
-    vm.gray_count = 0;
-    vm.gray_stack = null;
-    vm.bytes_allocated = 0;
-    vm.next_gc = 1024 * 1024;
-
-    define_native("clock", &clock_native);
+    self.stackTop = &self.stack[0];
 }
 
-<*
-    Free's the associated data for the global Lox VM.
-*>
-fn void free()
+fn void LoxVM.push(&self, Value value)
 {
-    vm.globals.free();
-    vm.strings.free();
-    vm.init_string = null;
-    memory::free_objects();
+    *self.stackTop = value;
+    self.stackTop++;
 }
 
-<*
-    Run's the compiler and loads the compiled bytecode into the VM and passes on
-    to 'run_interpreter' for execution of the bytecode.
-
-    Returns a void optional. This means that the actual return value is void. In the event
-    of an error, it returns the optional result (also known as an excuse).
-
-    @param [in] source "The source code to compile and execute"
-*>
-fn void! interpret(char *source)
+fn Value LoxVM.pop(&self)
 {
-    if (source == null) return;
-
-    ObjFunction *function = compiler::compile(source);
-    if (function == null) return VMResult.COMPILE_ERROR?;
-
-    push(obj_val(function));
-    ObjClosure *closure = object::new_closure(function);
-    pop();
-    push(obj_val(closure));
-    call(closure, 0);
-
-    return run_interpreter()!;
+    self.stackTop--;
+    return *self.stackTop;
 }
 
-<*
-    Pushes a [value] onto the VMs 'Value' [stack].
-
-    @require vm.stack_top != null
-*>
-fn void push(Value value)
+fn LoxResult LoxVM.interpret(&self, ZString source)
 {
-    *vm.stack_top = value;
-    vm.stack_top++;
+    Compiler compiler;
+    Chunk chunk;
+
+    defer chunk.free();
+
+    if (!compiler.compile(&chunk, source))
+        { return LoxResult.COMPILE_ERROR; }
+
+    self.chunk = &chunk;
+    self.ip = self.chunk.code;
+
+    if (catch self.run())
+        { return LoxResult.RUNTIME_ERROR; }
+
+    return LoxResult.OK;
 }
 
-<*
-    Pop's a 'Value' from the VMs 'Value' [stack].
-
-    @require vm.stack_top != null
-*>
-fn Value pop()
+fn char LoxVM.readByte(&self)
 {
-    vm.stack_top--;
-    return *vm.stack_top;
+    return *self.ip++;
 }
 
-<*
-    Returns the (Value) found on the VM's stack at a given distance
-    without popping values off of the stack.
-
-    @param distance "How far back into the stack to view"
-*>
-fn Value peek(int distance) @local
+fn Value LoxVM.readConstant(&self)
 {
-    return *(vm.stack_top - 1 - distance);
+    return self.chunk.constants[self.readByte()];
 }
 
-<*
-    Handles the loading of a function for a call expression.
-
-    This initializes the next call frame on the VMs stack.
-
-    @param [&in] closure "A reference to the closure being called"
-    @param argc "The argument count of the function"
-*>
-fn bool call(ObjClosure *closure, int argc) @local
+fn void! LoxVM.binaryOp(&self, char op)
 {
-    if (argc != closure.function.arity)
-    {
-        error::runtime(
-            "Expected %d arguments, but got %d instead",
-            closure.function.arity,
-            argc
-        );
-        return false;
-    }
-
-    if (vm.frame_count == FRAMES_MAX)
-    {
-        error::runtime("Stack overflow");
-        return false;
-    }
-
-    CallFrame *frame = &vm.frames[vm.frame_count++];
-    frame.closure = closure;
-    frame.ip = closure.function.chunk.code;
-    frame.slots = vm.stack_top - argc - 1;
-    return true;
-}
-
-<*
-    Handles the dispatching of a call expression based on the type of object
-    the call is being made on (such as a class, function, or method).
-*>
-fn bool call_value(Value callee, int argc) @local
-{
-    if (is_obj(callee))
-    {
-        switch (obj_type(callee))
-        {
-            case BOUND_METHOD:
-            {
-                ObjBoundMethod *bound = as_bound_method(callee);
-                vm.stack_top[-argc - 1] = bound.receiver;
-                return call(bound.method, argc);
-            }
-            case CLASS:
-            {
-                ObjClass *class = as_class(callee);
-                vm.stack_top[-argc - 1] = obj_val(object::new_instance(class));
-
-                Value initializer;
-                if (class.methods.get(vm.init_string, &initializer))
-                {
-                    return call(as_closure(initializer), argc);
-                }
-                else if (argc != 0)
-                {
-                    error::runtime("Expected 0 arguments but got %d instead", argc);
-                    return false;
-                }
-
-                return true;
-            }
-            case CLOSURE:
-                return call(as_closure(callee), argc);
-            case NATIVE:
-            {
-                NativeFn native = as_native(callee);
-                Value result = native(argc, vm.stack_top - argc);
-                vm.stack_top -= argc + 1;
-                push(result);
-                return true;
-            }
-            default:
-                break; // Non-callable object type
-        }
-    }
-
-    error::runtime("You can only call classes, functions, or methods on an instance");
-    return false;
-}
-
-<*
-    @param [&in] class "The class to invoke a method from"
-    @param [&in] name "The name of the method to invoke"
-    @param argc "The number of arguments passed to the method"
-*>
-fn bool invoke_from_class(ObjClass *class, ObjString *name, int argc) @local
-{
-    Value method;
-    if (!class.methods.get(name, &method))
-    {
-        error::runtime("Undefined property '%s'", (ZString)name.chars);
-        return false;
-    }
-
-    return call(as_closure(method), argc);
-}
-
-<*
-    Runtime end of an invoke instruction. Grabs the receiver based on the
-    [argc]. If it is an instance, it moves to a separate function to immediately
-    invoke the method. Otherwise, we're dealing with a property access.
-
-    @param [&in] name "The name of the method to invoke"
-    @param argc "The number of arguments supplied to the method"
-*>
-fn bool invoke(ObjString *name, int argc) @local
-{
-    Value receiver = peek(argc);
-    if (!is_instance(receiver))
-    {
-        error::runtime("You can only invoke methods on an instance");
-        return false;
-    }
-
-    ObjInstance *instance = as_instance(receiver);
-
-    Value value;
-    if (instance.fields.get(name, &value))
-    {
-        vm.stack_top[-argc - 1] = value;
-        return call_value(value, argc);
-    }
-
-    return invoke_from_class(instance.class, name, argc);
-}
-
-<*
-    Binds a method by its [name] to the specified [class] object.
-
-    @param [&inout] class "The class to bind the method to"
-    @param [&in] name "The name of the method to bind"
-*>
-fn bool bind_method(ObjClass *class, ObjString *name) @local
-{
-    Value method;
-    if (!class.methods.get(name, &method))
-    {
-        error::runtime("Undefined property '%s'", (ZString)name.chars);
-        return false;
-    }
-
-    ObjBoundMethod *bound = object::new_bound_method(peek(0), as_closure(method));
-    pop();
-    push(obj_val(bound));
-    return true;
-}
-
-<*
-    Creates and returns a new (ObjUpvalue) when a [local] is captured. If the upvalue
-    already exists, it is returned instead.
-
-    @param [&in] local "The local variable to capture"
-*>
-fn ObjUpvalue *capture_upvalue(Value *local)
-{
-    ObjUpvalue *prev_upvalue = null;
-    ObjUpvalue *upvalue = vm.open_upvalues;
-
-    while (upvalue != null && upvalue.location > local)
-    {
-        prev_upvalue = upvalue;
-        upvalue = upvalue.next;
-    }
-
-    if (upvalue != null && upvalue.location == local)
-    {
-        return upvalue;
-    }
-
-    ObjUpvalue *created_upvalue = object::new_upvalue(local);
-
-    if (prev_upvalue == null)
-        { vm.open_upvalues = created_upvalue; }
-    else
-        { prev_upvalue.next = created_upvalue; }
-
-    return created_upvalue;
-}
-
-<*
-    When a local variable is captured, it is made into an upvalue. Before that upvalue leaves the stack,
-    it is closed over, which hoists it onto the heap so that it may still be referenced.
-
-    @param [&in] last "A pointer to the value at the last slot to check for upvalues"
-*>
-fn void close_upvalues(Value *last)
-{
-    while (vm.open_upvalues != null && vm.open_upvalues.location >= last)
-    {
-        ObjUpvalue *upvalue = vm.open_upvalues;
-        upvalue.closed = *upvalue.location;
-        upvalue.location = &upvalue.closed;
-        vm.open_upvalues = upvalue.next;
-    }
-}
-
-<*
-    @param [&in] name "The name of the method to define"
-*>
-fn void define_method(ObjString *name)
-{
-    Value method = peek(0);
-    ObjClass *class = as_class(peek(1));
-    class.methods.set(name, method);
-    pop();
-}
-
-<*
-    Takes in a [name] and a pointer to a [function], pushing them onto the stack long
-    enough to add them to the VMs global variables table.
-
-    It then immediately pops them off the stack to prevent them from being freed during
-    a GC cycle, as both 'object::copy_string()' and 'object::new_native()' dynamically allocate
-    memory using the custom 'reallocate()' function. That function is the the main allocator
-    used by the GC and when it is called, can potentially trigger the GC to run a collection
-    cycle.
-
-    Since natives are stored in the globals table, they are freed along with the rest of
-    the globals.
-*>
-fn void define_native(String name, NativeFn function) @local
-{
-    push(obj_val(object::copy_string(name, name.len)));
-    push(obj_val(object::new_native(function)));
-    vm.globals.set(as_string(vm.stack[0]), vm.stack[1]);
-    pop();
-    pop();
-}
-
-<*
-    Returns 'true' if the provided [value] is considered 'falsey'. Otherwise,
-    it returns 'false'.
-
-    'Falsey' in Lox is similar to that of Ruby. 'nil' and 'false' are falsey
-    values, while every other value is 'truthy'.
-
-    @param value "The value to check for falsiness"
-*>
-fn bool is_falsey(Value value) @local
-{
-    return is_nil(value) || (is_bool(value) && !as_bool(value));
-}
-
-<*
-    Concatenates two (ObjString)s on the stack, taking ownership of the
-    characters and returning a newly combined (ObjString).
-*>
-fn void concatenate() @local
-{
-    ObjString *b = as_string(peek(0));
-    ObjString *a = as_string(peek(1));
-
-    int len = a.length + b.length;
-    char *chars = memory::allocate(char, len + 1);
-    mem::copy(chars, a.chars, a.length);
-    mem::copy(chars + a.length, b.chars, b.length);
-    chars[len] = '\0';
-
-    ObjString *result = object::take_string(chars, len);
-    pop();
-    pop();
-
-    push(obj_val(result));
-}
-
-<*
-    Macro to read a byte from the VMs bytecode array.
-
-    @param [&inout] frame "A reference to the call frame to read a byte from"
-    @ensure return != null
-*>
-macro read_byte(CallFrame *frame) @local
-{
-    return *frame.ip++;
-}
-
-<*
-    Macro to read a short from the VMs bytecode array.
-
-    @param [&inout] frame "A reference to the call frame to read a short from"
-    @ensure return != null
-*>
-macro read_short(CallFrame *frame) @local
-{
-    frame.ip += 2;
-    return (ushort)((frame.ip[-2] << 8) | frame.ip[-1]);
-}
-
-<*
-    Macro to read a constant from the VMs chunk constants pool.
-
-    @param [&inout] frame "A reference to the call frame to read a constant from"
-    @ensure return.typeid == Value.typeid
-*>
-macro read_constant(CallFrame *frame) @local
-{
-    return frame.closure.function.chunk.constants.values[read_byte(frame)];
-}
-
-<*
-    Macro to read a string from the VM's chunk constants pool.
-
-    @param [&inout] frame "A reference to the call frame to read a string from"
-    @ensure return.typeid == ObjString.typeid
-*>
-macro read_string(CallFrame *frame) @local
-{
-    return as_string(read_constant(frame));
-}
-
-<*
-    Macro that pops the top 2 values from the stack, evaluates the
-    binary operation on those values based on the provided [op], and
-    pushes the result onto the [stack].
-
-    @param op "The operator to use for the binary operation, passed as a char"
-*>
-macro binary_op(char op) @local
-{
-    if (!is_number(peek(0)) || !is_number(peek(1)))
-    {
-        error::runtime("Binary (non-addition) operands must be numbers");
-        return VMResult.RUNTIME_ERROR?;
-    }
-
-    double b = as_number(pop());
-    double a = as_number(pop());
+    Value b = self.pop();
+    Value a = self.pop();
 
     switch (op)
     {
-        case '-':   push(number_val(a - b));
-        case '*':   push(number_val(a * b));
-        case '/':   push(number_val(a / b));
-        case '%':   push(number_val(a % b));
-        case '>':   push(bool_val(a > b));
-        case '<':   push(bool_val(a < b));
         default:
-        {
-            error::runtime("Unknown binary operator");
-            return VMResult.RUNTIME_ERROR?;
-        }
+            unreachable();
+        case '+':
+            self.push(a + b);
+        case '-':
+            self.push(a - b);
+        case '*':
+            self.push(a * b);
+        case '/':
+            if (b == 0)
+            {
+                return InterpretError.DIVISION_BY_ZERO?;
+            }
+            self.push(a / b);
     }
 }
 
-<*
-    Interprets the bytecode instructions for the Lox VM.
-*>
-fn void! run_interpreter() @private
+fn void! LoxVM.run(&self)
 {
-    CallFrame *frame = &vm.frames[vm.frame_count - 1];
-
     for (;;)
     {
-        $if $feature(DEBUG) &&& TRACE_INSTRUCTIONS:
+        $if $feature(DEBUG) &&& DEBUG_TRACE_EXEC:
             io::eprintf("        ");
-            for (Value *slot = &vm.stack[0]; slot < vm.stack_top; slot++)
+            for (Value *slot = &self.stack[0]; slot < self.stackTop; slot++)
             {
                 io::eprintf("[ ");
                 value::print(*slot, io::stderr());
                 io::eprintf(" ]");
             }
-            io::eprintfn("");
-
-            frame.closure.function.chunk.disassemble_instruction(
-                (int)(frame.ip - frame.closure.function.chunk.code)
-            );
+            io::eprintf("\n");
+            self.chunk.disassembleInstruction((int)(self.ip - self.chunk.code));
         $endif
 
         OpCode instruction;
-        switch (instruction = (OpCode)read_byte(frame))
+        switch (instruction = OpCode.from_ordinal(self.readByte()))
         {
-            /* Jump Instructions */
-            case JUMP:
-            {
-                ushort offset = read_short(frame);
-                frame.ip += offset;
-            }
-            case JUMP_IF_FALSE:
-            {
-                ushort offset = read_short(frame);
-                if (is_falsey(peek(0))) frame.ip += offset;
-            }
-            case LOOP:
-            {
-                ushort offset = read_short(frame);
-                frame.ip -= offset;
-            }
-
-            /* Invoke Instructions */
-            case INVOKE:
-            {
-                ObjString *method = read_string(frame);
-                int argc = read_byte(frame);
-
-                if (!invoke(method, argc))
-                    { return VMResult.RUNTIME_ERROR?; }
-
-                frame = &vm.frames[vm.frame_count - 1];
-            }
-            case SUPER_INVOKE:
-            {
-                ObjString *method = read_string(frame);
-                int argc = read_byte(frame);
-                ObjClass *superclass = as_class(pop());
-                if (!invoke_from_class(superclass, method, argc))
-                    { return VMResult.RUNTIME_ERROR?; }
-
-                frame = &vm.frames[vm.frame_count - 1];
-            }
-
-            /* Constant Instructions */
-            case CLOSURE:
-            {
-                ObjFunction *function = as_function(read_constant(frame));
-                ObjClosure *closure = object::new_closure(function);
-                push(obj_val(closure));
-
-                for (int i = 0; i < closure.upvalue_count; i++)
-                {
-                    char is_local = read_byte(frame);
-                    char index = read_byte(frame);
-
-                    if (is_local)
-                    {
-                        closure.upvalues[i] = capture_upvalue(frame.slots + index);
-                    }
-                    else
-                    {
-                        closure.upvalues[i] = frame.closure.upvalues[index];
-                    }
-                }
-            }
-            case CLASS:
-                push(obj_val(object::new_class(read_string(frame))));
-            case CONSTANT:
-            {
-                Value constant = read_constant(frame);
-                push(constant);
-            }
-            case METHOD:    define_method(read_string(frame));
-            case DEFINE_GLOBAL:
-            {
-                ObjString *name = read_string(frame);
-                vm.globals.set(name, peek(0));
-                pop();
-            }
-            case GET_GLOBAL:
-            {
-                ObjString *name = read_string(frame);
-                Value value;
-
-                if (!vm.globals.get(name, &value))
-                {
-                    error::runtime("Undefined variable '%s'", (ZString)name.chars);
-                    return VMResult.RUNTIME_ERROR?;
-                }
-
-                push(value);
-            }
-            case SET_GLOBAL:
-            {
-                ObjString *name = read_string(frame);
-                if (vm.globals.set(name, peek(0)))
-                {
-                    vm.globals.delete(name);
-                    error::runtime("Undefined variable '%s'", (ZString)name.chars);
-                    return VMResult.RUNTIME_ERROR?;
-                }
-            }
-            case GET_PROPERTY:
-            {
-                if (!is_instance(peek(0)))
-                {
-                    error::runtime("Only instances of a class have properties");
-                    return VMResult.RUNTIME_ERROR?;
-                }
-
-                ObjInstance *instance = as_instance(peek(0));
-                ObjString *name = read_string(frame);
-
-                Value value;
-                if (instance.fields.get(name, &value))
-                {
-                    pop();
-                    push(value);
-                    break;
-                }
-
-                if (!bind_method(instance.class, name))
-                    { return VMResult.RUNTIME_ERROR?; }
-                break;
-            }
-            case SET_PROPERTY:
-            {
-                if (!is_instance(peek(1)))
-                {
-                    error::runtime("Only instances of a class have fields");
-                    return VMResult.RUNTIME_ERROR?;
-                }
-
-                ObjInstance *instance = as_instance(peek(1));
-                instance.fields.set(read_string(frame), peek(0));
-                Value value = pop();
-                pop();
-                push(value);
-            }
-            case GET_SUPER:
-            {
-                ObjString *name = read_string(frame);
-                ObjClass *superclass = as_class(pop());
-
-                if (!bind_method(superclass, name))
-                    { return VMResult.RUNTIME_ERROR?; }
-            }
-
-            /* Byte Instructions */
-            case GET_UPVALUE:
-            {
-                char slot = read_byte(frame);
-                push(*frame.closure.upvalues[slot].location);
-            }
-            case SET_UPVALUE:
-            {
-                char slot = read_byte(frame);
-                *frame.closure.upvalues[slot].location = peek(0);
-            }
-            case CALL:
-            {
-                int argc = read_byte(frame);
-                if (!call_value(peek(argc), argc))
-                    { return VMResult.RUNTIME_ERROR?; }
-
-                frame = &vm.frames[vm.frame_count - 1];
-            }
-            case GET_LOCAL:
-            {
-                char slot = read_byte(frame);
-                push(frame.slots[slot]);
-            }
-            case SET_LOCAL:
-            {
-                char slot = read_byte(frame);
-                frame.slots[slot] = peek(0);
-            }
-
-            /* Simple Instructions */
-            case INHERIT:
-            {
-                Value superclass = peek(1);
-                if (!is_class(superclass))
-                {
-                    error::runtime("Superclass must be a class");
-                    return VMResult.RUNTIME_ERROR?;
-                }
-
-                ObjClass *subclass = as_class(peek(0));
-                as_class(superclass).methods.add_all(&subclass.methods);
-                pop();
-            }
-            case CLOSE_UPVALUE:
-            {
-                close_upvalues(vm.stack_top - 1);
-                pop();
-            }
-            case NIL:       push(nil_val());
-            case TRUE:      push(bool_val(true));
-            case FALSE:     push(bool_val(false));
-            case NOT:
-            {
-                /* (NOT) is able to receive the same optimization as (NEGATE) */
-                $if OPTIMIZE_NOT:
-                    push(bool_val(is_falsey(*(--vm.stack_top))));
-                $else
-                    push(bool_val(is_falsey(pop())));
-                $endif
-            }
-            case EQUAL:
-            {
-                Value b = pop();
-                Value a = pop();
-
-                push(bool_val(value::equal(a, b)));
-            }
-            case GREATER:   binary_op('>')!;
-            case LESS:      binary_op('<')!;
-            case TERNARY:
-            {
-                Value falsey = pop();
-                Value truthy = pop();
-
-                !is_falsey(pop()) ? push(truthy) : push(falsey);
-            }
-            case NEGATE:
-            {
-                if (!is_number(peek(0)))
-                {
-                    error::runtime("Unary operand must be a number");
-                    return VMResult.RUNTIME_ERROR?;
-                }
-
-                $if OPTIMIZE_NEGATION:
-                    push(number_val(-as_number(*(--vm.stack_top))));
-                $else
-                    push(number_val(-as_number(pop())));
-                $endif
-            }
-            case ADD:
-            {
-                if (is_string(peek(0)) && is_string(peek(1)))
-                {
-                    concatenate();
-                }
-                else if (is_number(peek(0)) && is_number(peek(1)))
-                {
-                    double b = as_number(pop());
-                    double a = as_number(pop());
-
-                    push(number_val(a + b));
-                }
-                else
-                {
-                    error::runtime("Binary (addition) operands must be numbers or strings, but not both.");
-                    return VMResult.RUNTIME_ERROR?;
-                }
-            }
-            case SUBTRACT:  binary_op('-')!;
-            case MULTIPLY:  binary_op('*')!;
-            case DIVIDE:    binary_op('/')!;
-            case MODULUS:   binary_op('%')!;
-            case POP:       pop();
-            case PRINT:
-            {
-                value::print(pop());
-                io::printn();
-            }
             case RETURN:
-            {
-                Value result = pop();
-                close_upvalues(frame.slots);
-                vm.frame_count--;
-
-                if (vm.frame_count == 0)
-                {
-                    pop();
-                    return;
-                }
-
-                vm.stack_top = frame.slots;
-                push(result);
-
-                frame = &vm.frames[vm.frame_count - 1];
-            }
+                value::print(self.pop());
+                io::printn();
+                return;
+            case ADD:
+                self.binaryOp('+')!;
+            case SUBTRACT:
+                self.binaryOp('-')!;
+            case MULTIPLY:
+                self.binaryOp('*')!;
+            case DIVIDE:
+                self.binaryOp('/')!;
+            case NEGATE:
+                self.push(-*(--self.stackTop));
+            case CONSTANT:
+                Value constant = self.readConstant();
+                self.push(constant);
         }
     }
 }
