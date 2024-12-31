@@ -11,11 +11,18 @@ enum OpCode : char
 {
     /* Simple Instructions (1 byte) */
     RETURN,
+    NIL,
+    FALSE,
+    TRUE,
     ADD,
     SUBTRACT,
     MULTIPLY,
     DIVIDE,
     NEGATE,
+    NOT,
+    EQUAL,
+    GREATER,
+    LESS,
 
     /* Constant Instructions (2 bytes) */
     CONSTANT,
@@ -111,6 +118,12 @@ fn int Chunk.disassembleInstruction(&self, int offset)
     {
         case RETURN:
             return simpleInstruction("RETURN", offset);
+        case NIL:
+            return simpleInstruction("NIL", offset);
+        case FALSE:
+            return simpleInstruction("FALSE", offset);
+        case TRUE:
+            return simpleInstruction("TRUE", offset);
         case ADD:
             return simpleInstruction("ADD", offset);
         case SUBTRACT:
@@ -121,6 +134,8 @@ fn int Chunk.disassembleInstruction(&self, int offset)
             return simpleInstruction("DIVIDE", offset);
         case NEGATE:
             return simpleInstruction("NEGATE", offset);
+        case NOT:
+            return simpleInstruction("NOT", offset);
         case CONSTANT:
             return constantInstruction("CONSTANT", self, offset);
         default:

@@ -1,4 +1,4 @@
-module lox::vm;
+module lox::vm @private;
 import lox::common;
 import lox::compiler;
 import lox::chunk;
@@ -13,10 +13,12 @@ const uint STACK_MAX = 256;
 
 fault InterpretError
 {
-    DIVISION_BY_ZERO
+    DIVISION_BY_ZERO,
+    INVALID_OPERAND,
+    INVALID_OPERANDS
 }
 
-struct LoxVM
+struct LoxVM @public
 {
     Chunk *chunk;
     char *ip;
@@ -24,12 +26,12 @@ struct LoxVM
     Value *stackTop;
 }
 
-fn void LoxVM.init(&self)
+fn void LoxVM.init(&self) @public
 {
     self.resetStack();
 }
 
-fn void LoxVM.free(&self)
+fn void LoxVM.free(&self) @public
 {
 
 }
@@ -39,19 +41,40 @@ fn void LoxVM.resetStack(&self)
     self.stackTop = &self.stack[0];
 }
 
-fn void LoxVM.push(&self, Value value)
+fn void LoxVM.runtimeError(&self, String fmt, args...)
+{
+    io::eprintfn(fmt, ...args);
+
+    usz instruction = self.ip - self.chunk.code - 1;
+    int line = self.chunk.lines[instruction];
+
+    io::eprintfn("[line %d] in script", line);
+    self.resetStack();
+}
+
+fn void LoxVM.push(&self, Value value) @public
 {
     *self.stackTop = value;
     self.stackTop++;
 }
 
-fn Value LoxVM.pop(&self)
+fn Value LoxVM.pop(&self) @public
 {
     self.stackTop--;
     return *self.stackTop;
 }
 
-fn LoxResult LoxVM.interpret(&self, ZString source)
+fn Value LoxVM.peek(&self, int distance = 0)
+{
+    return self.stackTop[-1 - distance];
+}
+
+fn bool isFalsey(Value value) @local
+{
+    return isNil(value) || (isBool(value) && !asBool(value));
+}
+
+fn LoxResult LoxVM.interpret(&self, ZString source) @public
 {
     Compiler compiler;
     Chunk chunk;
@@ -82,25 +105,36 @@ fn Value LoxVM.readConstant(&self)
 
 fn void! LoxVM.binaryOp(&self, char op)
 {
-    Value b = self.pop();
-    Value a = self.pop();
+    if (!isNumber(self.peek()) && !isNumber(self.peek(1)))
+    {
+        self.runtimeError("Binary (non-addition) operands must be numbers");
+        return InterpretError.INVALID_OPERANDS?;
+    }
+
+    double b = asNumber(self.pop());
+    double a = asNumber(self.pop());
 
     switch (op)
     {
         default:
             unreachable();
         case '+':
-            self.push(a + b);
+            self.push(numberVal(a + b));
         case '-':
-            self.push(a - b);
+            self.push(numberVal(a - b));
         case '*':
-            self.push(a * b);
+            self.push(numberVal(a * b));
         case '/':
             if (b == 0)
             {
+                self.runtimeError("Division by Zero");
                 return InterpretError.DIVISION_BY_ZERO?;
             }
-            self.push(a / b);
+            self.push(numberVal(a / b));
+        case '>':
+            self.push(boolVal(a > b));
+        case '<':
+            self.push(boolVal(a < b));
     }
 }
 
@@ -120,24 +154,45 @@ fn void! LoxVM.run(&self)
             self.chunk.disassembleInstruction((int)(self.ip - self.chunk.code));
         $endif
 
-        OpCode instruction;
-        switch (instruction = OpCode.from_ordinal(self.readByte()))
+        char instruction;
+        switch (instruction = self.readByte())
         {
-            case RETURN:
+            case OpCode.RETURN.ordinal:
                 value::print(self.pop());
                 io::printn();
                 return;
-            case ADD:
+            case OpCode.NIL.ordinal:
+                self.push(nilVal());
+            case OpCode.FALSE.ordinal:
+                self.push(boolVal(false));
+            case OpCode.TRUE.ordinal:
+                self.push(boolVal(true));
+            case OpCode.ADD.ordinal:
                 self.binaryOp('+')!;
-            case SUBTRACT:
+            case OpCode.SUBTRACT.ordinal:
                 self.binaryOp('-')!;
-            case MULTIPLY:
+            case OpCode.MULTIPLY.ordinal:
                 self.binaryOp('*')!;
-            case DIVIDE:
+            case OpCode.DIVIDE.ordinal:
                 self.binaryOp('/')!;
-            case NEGATE:
-                self.push(-*(--self.stackTop));
-            case CONSTANT:
+            case OpCode.NEGATE.ordinal:
+                if (!isNumber(self.peek()))
+                {
+                    self.runtimeError("Negation operand must be a number");
+                    return InterpretError.INVALID_OPERAND?;
+                }
+                self.push(numberVal(-asNumber(*(--self.stackTop))));
+            case OpCode.NOT.ordinal:
+                self.push(boolVal(isFalsey(self.pop())));
+            case OpCode.EQUAL.ordinal:
+                Value b = self.pop();
+                Value a = self.pop();
+                self.push(boolVal(value::equal(a, b)));
+            case OpCode.GREATER.ordinal:
+                self.binaryOp('>')!;
+            case OpCode.LESS.ordinal:
+                self.binaryOp('<')!;
+            case OpCode.CONSTANT.ordinal:
                 Value constant = self.readConstant();
                 self.push(constant);
         }

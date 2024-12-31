@@ -57,31 +57,31 @@ ParseRule[] rules = {
     [TokenType.PLUS.ordinal]       = { null,               &Compiler.binary,       TERM },
     [TokenType.SLASH.ordinal]      = { null,               &Compiler.binary,       FACTOR },
     [TokenType.STAR.ordinal]       = { null,               &Compiler.binary,       FACTOR },
-    [TokenType.BANG.ordinal]       = { null,               null,                   NONE },
-    [TokenType.BANGEQ.ordinal]     = { null,               null,                   NONE },
+    [TokenType.BANG.ordinal]       = { &Compiler.unary,    null,                   NONE },
+    [TokenType.BANGEQ.ordinal]     = { null,               &Compiler.binary,       EQUALITY },
     [TokenType.EQUAL.ordinal]      = { null,               null,                   NONE },
-    [TokenType.EQEQ.ordinal]       = { null,               null,                   NONE },
-    [TokenType.GT.ordinal]         = { null,               null,                   NONE },
-    [TokenType.GTEQ.ordinal]       = { null,               null,                   NONE },
-    [TokenType.LT.ordinal]         = { null,               null,                   NONE },
-    [TokenType.LTEQ.ordinal]       = { null,               null,                   NONE },
+    [TokenType.EQEQ.ordinal]       = { null,               &Compiler.binary,       EQUALITY },
+    [TokenType.GT.ordinal]         = { null,               &Compiler.binary,       COMPARISON },
+    [TokenType.GTEQ.ordinal]       = { null,               &Compiler.binary,       COMPARISON },
+    [TokenType.LT.ordinal]         = { null,               &Compiler.binary,       COMPARISON },
+    [TokenType.LTEQ.ordinal]       = { null,               &Compiler.binary,       COMPARISON },
     [TokenType.IDENTIFIER.ordinal] = { null,               null,                   NONE },
     [TokenType.NUMBER.ordinal]     = { &Compiler.number,   null,                   NONE },
     [TokenType.STRING.ordinal]     = { null,               null,                   NONE },
     [TokenType.AND.ordinal]        = { null,               null,                   NONE },
     [TokenType.CLASS.ordinal]      = { null,               null,                   NONE },
     [TokenType.ELSE.ordinal]       = { null,               null,                   NONE },
-    [TokenType.FALSE.ordinal]      = { null,               null,                   NONE },
+    [TokenType.FALSE.ordinal]      = { &Compiler.literal,  null,                   NONE },
     [TokenType.FOR.ordinal]        = { null,               null,                   NONE },
     [TokenType.FUN.ordinal]        = { null,               null,                   NONE },
     [TokenType.IF.ordinal]         = { null,               null,                   NONE },
-    [TokenType.NIL.ordinal]        = { null,               null,                   NONE },
+    [TokenType.NIL.ordinal]        = { &Compiler.literal,  null,                   NONE },
     [TokenType.OR.ordinal]         = { null,               null,                   NONE },
     [TokenType.PRINT.ordinal]      = { null,               null,                   NONE },
     [TokenType.RETURN.ordinal]     = { null,               null,                   NONE },
     [TokenType.SUPER.ordinal]      = { null,               null,                   NONE },
     [TokenType.THIS.ordinal]       = { null,               null,                   NONE },
-    [TokenType.TRUE.ordinal]       = { null,               null,                   NONE },
+    [TokenType.TRUE.ordinal]       = { &Compiler.literal,  null,                   NONE },
     [TokenType.VAR.ordinal]        = { null,               null,                   NONE },
     [TokenType.WHILE.ordinal]      = { null,               null,                   NONE },
 };
@@ -104,7 +104,7 @@ fn void Parser.error(&self, Token *token, String message)
     else
         { io::eprintf(" at '%s'", token.lexeme); }
 
-    io::eprintf(": %s", message);
+    io::eprintfn(": %s", message);
     self.hadError = true;
 }
 
@@ -222,7 +222,18 @@ fn void Compiler.number(&self)
         return;
     }
 
-    self.emitConstant(value);
+    self.emitConstant(numberVal(value));
+}
+
+fn void Compiler.literal(&self)
+{
+    switch (self.parser.previous.type)
+    {
+        case NIL:   self.emitByte(OpCode.NIL.ordinal);
+        case FALSE: self.emitByte(OpCode.FALSE.ordinal);
+        case TRUE:  self.emitByte(OpCode.TRUE.ordinal);
+        default:    unreachable();
+    }
 }
 
 fn void Compiler.binary(&self)
@@ -233,11 +244,17 @@ fn void Compiler.binary(&self)
 
     switch (operatorType)
     {
-        case MINUS: self.emitByte(OpCode.SUBTRACT.ordinal);
-        case PLUS:  self.emitByte(OpCode.ADD.ordinal);
-        case SLASH: self.emitByte(OpCode.DIVIDE.ordinal);
-        case STAR:  self.emitByte(OpCode.MULTIPLY.ordinal);
-        default:    unreachable();
+        case BANGEQ:    self.emitBytes(OpCode.EQUAL.ordinal, OpCode.NOT.ordinal);
+        case EQEQ:      self.emitByte(OpCode.EQUAL.ordinal);
+        case GT:        self.emitByte(OpCode.GREATER.ordinal);
+        case GTEQ:      self.emitBytes(OpCode.LESS.ordinal, OpCode.NOT.ordinal);
+        case LT:        self.emitByte(OpCode.LESS.ordinal);
+        case LTEQ:      self.emitBytes(OpCode.GREATER.ordinal, OpCode.NOT.ordinal);
+        case MINUS:     self.emitByte(OpCode.SUBTRACT.ordinal);
+        case PLUS:      self.emitByte(OpCode.ADD.ordinal);
+        case SLASH:     self.emitByte(OpCode.DIVIDE.ordinal);
+        case STAR:      self.emitByte(OpCode.MULTIPLY.ordinal);
+        default:        unreachable();
     }
 }
 
@@ -248,6 +265,7 @@ fn void Compiler.unary(&self)
 
     switch (operatorType)
     {
+        case BANG:  self.emitByte(OpCode.NOT.ordinal);
         case MINUS: self.emitByte(OpCode.NEGATE.ordinal);
         default:    unreachable();
     }
