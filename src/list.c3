@@ -1,75 +1,90 @@
-module lox::list (<Type>);
+module lox::vm::list (<Type>);
 import lox::common;
-import lox::mem;
+import lox::vm::mem;
 
 //------------------------------------------------------------------------------
-// Lox \ List
+// Lox \ VM \ Buffer
 //------------------------------------------------------------------------------
 
 struct LoxList
 {
-    usz capacity;
-    usz size;
-    Type *values;
+    int capacity;
+    int size;
+    Type *entries;
 }
 
-fn void LoxList.init(&self)
+fn void LoxList.zero(&self)
 {
     self.capacity = 0;
     self.size = 0;
-    self.values = null;
+    self.entries = null;
 }
 
-fn void LoxList.new(&self)
+fn LoxList *LoxList.new(&self, int capacity = 8)
 {
-    self.init();
-    self.values = mem::lalloc(Type, DEFAULT_LIST_CAPACITY);
-    self.capacity = DEFAULT_LIST_CAPACITY;
+    self.zero();
+    self.entries = mem::lalloc(Type, capacity);
+    self.capacity = capacity;
+    return self;
 }
 
 fn void LoxList.free(&self)
 {
-    mem::lfree(self.values, self.capacity);
-    self.init();
+    mem::lfree(Type, self.entries, self.capacity);
+    self.zero();
 }
 
 fn void LoxList.append(&self, Type value)
 {
+    if (!self.entries) self.new();
+
     if (self.capacity < self.size + 1)
     {
-        usz old = self.capacity;
-        self.capacity = nextPowOf2(old);
-        self.values = mem::lrealloc(self.values, old, self.capacity);
+        int oldCapacity = self.capacity;
+        self.capacity = nextPowOf2(oldCapacity);
+        self.entries = mem::lrealloc(Type, self.entries, oldCapacity, self.capacity);
     }
 
-    self.values[self.size++] = value;
+    self.entries[self.size++] = value;
 }
 
-<*
-    @require index <= self.size "Index out of bounds"
-*>
-fn Type LoxList.get(&self, int index) @operator([])
+fn Type LoxList.get(&self, int index) @operator([]) @inline
 {
-    return self.values[index];
+    assert(index < self.size);
+    return self.entries[index];
 }
 
-<*
-    @require index <= self.size "Index out of bounds"
-*>
-fn Type *LoxList.getref(&self, int index) @operator(&[])
+fn Type *LoxList.getref(&self, int index) @operator(&[]) @inline
 {
-    return &self.values[index];
+    assert(index < self.size);
+    return &self.entries[index];
 }
 
-<*
-    @require index <= self.size "Index out of bounds"
-*>
 fn void LoxList.set(&self, int index, Type value) @operator([]=)
 {
-    self.values[index] = value;
+    assert(index < self.size);
+    self.entries[index] = value;
 }
 
-fn usz LoxList.len(&self) @operator(len)
+fn int LoxList.len(&self) @operator(len) @inline
 {
     return self.size;
+}
+
+fn Type LoxList.first(&self) @inline
+{
+    assert(self.size > 0);
+    return self.entries[0];
+}
+
+fn Type LoxList.last(&self) @inline
+{
+    assert(self.size > 0);
+    return self.entries[self.size - 1];
+}
+
+fn Type LoxList.pop(&self) @inline
+{
+    assert(self.size > 0);
+    return self.entries[--self.size];
 }

@@ -1,27 +1,9 @@
 module lox::common;
 
 //------------------------------------------------------------------------------
-// Lox \ Chunk
+// Lox \ Common
 //------------------------------------------------------------------------------
 
-enum LoxResult : int
-{
-    OK,
-    COMPILE_ERROR,
-    RUNTIME_ERROR,
-    SOURCE_ERROR,
-    USAGE_ERROR,
-}
-
-/* Constants */
-const uint DEFAULT_LIST_CAPACITY @builtin = 16U;
-
-/* Debug Flags */
-const bool DEBUG_DUMP_TOKENS    @builtin = true;
-const bool DEBUG_PRINT_CODE     @builtin = false;
-const bool DEBUG_TRACE_EXEC     @builtin = false;
-
-/* Macros/Functions */
 macro nextPowOf2(n) @builtin
 {
     return n < 16U ? 16U : n * 2U;

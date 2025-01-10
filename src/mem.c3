@@ -1,22 +1,23 @@
-module lox::mem;
+module lox::vm::mem;
+import lox::vm::value;
+import lox::vm @norecurse;
 
 //------------------------------------------------------------------------------
-// Lox \ Mem
+// Lox \ VM \ Mem
 //------------------------------------------------------------------------------
 
-fn void *reallocate(void *memory, usz old_size, usz new_size)
+fn void *reallocate(void *ptr, usz oldSize, usz newSize) @local
 {
-    (void) old_size;
-    if (new_size == 0)
+    if (newSize == 0)
     {
-        free(memory);
+        free(ptr);
         return null;
     }
 
-    return realloc(memory, new_size);
+    return realloc(ptr, newSize);
 }
 
-macro lalloc($Type, count)
+macro lalloc($Type, count = 0)
 {
     if (count > 0)
     {
@@ -26,23 +27,44 @@ macro lalloc($Type, count)
     return ($Type *)reallocate(null, 0, $Type.sizeof);
 }
 
-macro lrealloc(ptr, old_size, new_size)
+macro lrealloc($Type, ptr, oldSize, newSize)
 {
-    usz size = $typeof(ptr).sizeof;
-
-    return ($typeof(ptr))reallocate(ptr,
-        size * old_size, size * new_size);
+    return ($Type *)reallocate(ptr, $Type.sizeof * oldSize, $Type.sizeof * newSize);
 }
 
-macro lfree(ptr, old_size)
+macro lfree($Type, ptr, oldSize = 0)
 {
-    usz size = $typeof(ptr).sizeof;
-
-    if (old_size > size)
+    if (oldSize > $Type.sizeof)
     {
-        reallocate(ptr, size * old_size, 0);
+        reallocate(ptr, $Type.sizeof * oldSize, 0);
         return;
     }
 
-    reallocate(ptr, size, 0);
+    reallocate(ptr, $Type.sizeof, 0);
+}
+
+//------------------------------------------------------------------------------
+// Lox \ VM \ Mem -- Internal
+//------------------------------------------------------------------------------
+
+fn void freeObject(Obj *object)
+{
+    switch (object.type)
+    {
+        case STRING:
+            ObjString *string = (ObjString *)object;
+            lfree(char, string.chars[:string.len], string.len + 1);
+            lfree(ObjString, object);
+    }
+}
+
+fn void freeObjects(LoxVM *vm)
+{
+    Obj *object = vm.objects;
+    while (object != null)
+    {
+        Obj *next = object.next;
+        freeObject(object);
+        object = next;
+    }
 }

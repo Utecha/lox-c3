@@ -1,145 +1,83 @@
-module lox::chunk;
-import lox::common;
-import lox::mem;
-import lox::value;
+module lox::vm::chunk;
+import lox::vm::list;
+import lox::vm::mem;
+import lox::vm::value;
 
 //------------------------------------------------------------------------------
-// Lox \ Chunk
+// Lox \ VM \ Chunk
 //------------------------------------------------------------------------------
 
-enum OpCode : char
+struct Line
 {
-    /* Simple Instructions (1 byte) */
-    RETURN,
-    ADD,
-    SUBTRACT,
-    MULTIPLY,
-    DIVIDE,
-    NEGATE,
-
-    /* Constant Instructions (2 bytes) */
-    CONSTANT,
+    int line;
+    int offset;
 }
+
+def CodeBuffer = LoxList(<char>);
+def LineBuffer = LoxList(<Line>);
+def ValueBuffer = LoxList(<Value>);
 
 struct Chunk
 {
-    usz capacity;
-    usz size;
-    char *code;
-    int *lines;
-    ValueList constants;
+    CodeBuffer code;
+    LineBuffer lines;
+    ValueBuffer constants;
 }
 
-fn void Chunk.init(&self)
+fn void Chunk.zero(&self)
 {
-    self.capacity = 0;
-    self.size = 0;
-    self.code = null;
-    self.lines = null;
-    self.constants.init();
+    self.code.zero();
+    self.lines.zero();
+    self.constants.zero();
+}
+
+fn Chunk *Chunk.new(&self)
+{
+    self.code.new();
+    self.lines.new();
+    self.constants.new();
+    return self;
 }
 
 fn void Chunk.free(&self)
 {
     self.constants.free();
-    mem::lfree(self.lines, self.capacity);
-    mem::lfree(self.code, self.capacity);
-    self.init();
+    self.lines.free();
+    self.code.free();
+    self.zero();
 }
 
 fn void Chunk.write(&self, char byte, int line)
 {
-    if (self.capacity < self.size + 1)
-    {
-        usz old = self.capacity;
-        self.capacity = nextPowOf2(old);
-        self.code = mem::lrealloc(self.code, old, self.capacity);
-        self.lines = mem::lrealloc(self.lines, old, self.capacity);
-    }
+    if (self.code.len() == 0 || self.lines.last().line != line)
+        { self.lines.append({ .line = line, .offset = self.code.len() }); }
 
-    self.code[self.size] = byte;
-    self.lines[self.size] = line;
-    self.size++;
+    self.code.append(byte);
 }
 
 fn int Chunk.addConstant(&self, Value value)
 {
     self.constants.append(value);
-    return (int)self.constants.len() - 1;
+    return self.constants.len() - 1;
 }
 
-fn char byte(int value) @builtin
+fn int Chunk.getLine(&self, int offset)
 {
-    return (char)value;
-}
+    int start = 0;
+    int end = self.lines.len() - 1;
 
-//------------------------------------------------------------------------------
-module lox::chunk @if($feature(DEBUG));
-import lox::value;
-import std::io @norecurse;
-
-//------------------------------------------------------------------------------
-// Lox \ Chunk @if DEBUG
-//------------------------------------------------------------------------------
-
-fn void Chunk.disassemble(&self, String name)
-{
-    io::eprintfn("=== %s ===", name);
-
-    for (int offset = 0; offset < self.size;)
+    while (start <= end)
     {
-        offset = self.disassembleInstruction(offset);
-    }
-}
+        int mid = (start + end) / 2;
+        Line line = self.lines[mid];
 
-fn int Chunk.disassembleInstruction(&self, int offset)
-{
-    io::eprintf("%04d ", offset);
-
-    int line = self.lines[offset];
-    if (offset > 0 && line == self.lines[offset - 1])
-    {
-        io::eprintf("   | ");
-    }
-    else
-    {
-        io::eprintf("%4d ", line);
+        if (offset < line.offset)
+            { end = mid - 1; }
+        else if (mid == self.lines.len() - 1 || offset < self.lines[mid + 1].offset)
+            { return line.line; }
+        else
+            { start = mid + 1; }
     }
 
-    OpCode instruction = OpCode.from_ordinal(self.code[offset]);
-    switch (instruction)
-    {
-        case RETURN:
-            return simpleInstruction("RETURN", offset);
-        case ADD:
-            return simpleInstruction("ADD", offset);
-        case SUBTRACT:
-            return simpleInstruction("SUBTRACT", offset);
-        case MULTIPLY:
-            return simpleInstruction("MULTIPLY", offset);
-        case DIVIDE:
-            return simpleInstruction("DIVIDE", offset);
-        case NEGATE:
-            return simpleInstruction("NEGATE", offset);
-        case CONSTANT:
-            return constantInstruction("CONSTANT", self, offset);
-        default:
-            io::eprintfn("Unknown OpCode: [ %s : %d ]", instruction, self.code[offset]);
-            return offset + 1;
-    }
-}
-
-fn int constantInstruction(String name, Chunk *chunk, int offset)
-{
-    char constant = chunk.code[offset + 1];
-    io::eprintf("%-16s %4d '", name, constant);
-    value::print(chunk.constants[constant], io::stderr());
-    io::eprintf("'\n");
-    return offset + 2;
-}
-
-fn int simpleInstruction(String name, int offset)
-{
-    io::eprintfn("%s", name);
-    return offset + 1;
+    return -1;
 }

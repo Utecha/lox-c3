@@ -13,7 +13,7 @@ struct Lexer @public
     int line;
 }
 
-fn void Lexer.init(&self, ZString source) @public
+fn void Lexer.init(&self, char *source) @public
 {
     self.start = source;
     self.current = source;
@@ -44,10 +44,10 @@ fn Token Lexer.getNextToken(&self) @public
         case '+':   return self.makeToken(PLUS);
         case '/':   return self.makeToken(SLASH);
         case '*':   return self.makeToken(STAR);
-        case '!':   return self.makeTokenDuo(c, BANGEQ, BANG);
-        case '=':   return self.makeTokenDuo(c, EQEQ, EQUAL);
-        case '>':   return self.makeTokenDuo(c, GTEQ, GT);
-        case '<':   return self.makeTokenDuo(c, LTEQ, LT);
+        case '!':   return self.makeTokenDuo('=', BANGEQ, BANG);
+        case '=':   return self.makeTokenDuo('=', EQEQ, EQUAL);
+        case '>':   return self.makeTokenDuo('=', GTEQ, GT);
+        case '<':   return self.makeTokenDuo('=', LTEQ, LT);
         case '"':   return self.string();
     }
 
@@ -90,7 +90,7 @@ fn Token Lexer.makeToken(&self, TokenType type)
     };
 }
 
-fn Token Lexer.makeTokenDuo(&self, char c, TokenType one, TokenType two)
+fn Token Lexer.makeTokenDuo(&self, char c, TokenType two, TokenType one)
 {
     return self.makeToken(self.match(c) ? two : one);
 }
@@ -187,36 +187,5 @@ fn void Lexer.skipWhitespace(&self)
             default:
                 return;
         }
-    }
-}
-
-//------------------------------------------------------------------------------
-module lox::lexer @if($feature(DEBUG));
-import lox::common;
-import lox::token;
-import std::io @norecurse;
-
-//------------------------------------------------------------------------------
-// Lox \ Lexer @if DEBUG
-//------------------------------------------------------------------------------
-
-fn void dumpTokens(Lexer *lexer, ZString source) @if(DEBUG_DUMP_TOKENS)
-{
-    int line = -1;
-    for (;;)
-    {
-        Token token = lexer.getNextToken();
-        if (token.line != line)
-        {
-            io::printf("%4d ", token.line);
-            line = token.line;
-        }
-        else
-        {
-            io::printf("   | ");
-        }
-
-        io::printfn("%-10s : '%s'", token.type, token.lexeme);
-        if (token.type == TokenType.EOF) break;
     }
 }
