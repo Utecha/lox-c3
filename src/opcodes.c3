@@ -38,6 +38,11 @@ enum OpCode : char
     /* Byte Instructions */
     GET_LOCAL,
     SET_LOCAL,
+
+    /* Jump Instructions */
+    JUMP,           // Unconditional
+    JUMP_IF_TRUE,   // Conditional
+    JUMP_IF_FALSE   // Conditional
 }
 
 fn char obyte(OpCode code) @builtin @inline => code.ordinal;

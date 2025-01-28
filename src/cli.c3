@@ -50,6 +50,25 @@ fn int runFile(LoxVM *vm, String path)
 // Lox \ CLI -- REPL
 //------------------------------------------------------------------------------
 
+extern fn char *readline(char *prompt) @if(!env::WIN32);
+extern fn void add_history(char *input) @if(!env::WIN32);
+
+/* Fake readline function */
+fn char *readline(char *prompt) @if(env::WIN32)
+{
+    io::print(prompt);
+
+    String! str = io::readline();
+    if (catch str) return null;
+    defer str.free();
+
+    return str.zstr_copy();
+}
+
+/* Fake add history function */
+
+fn void add_history(char *input) @if(env::WIN32) { return; }
+
 fn void repl(LoxVM *vm)
 {
     $if $feature(DEBUG):
@@ -61,16 +80,15 @@ fn void repl(LoxVM *vm)
 
     for (;;)
     {
-        io::print(">>> ");
-
-        String! line = io::readline();
-        if (catch line)
+        char *line = readline(">>> ");
+        if (!line)
         {
             io::printn();
             return;
         }
 
+        add_history(line);
         vm.interpret(line);
-        line.free();
+        free(line);
     }
 }

@@ -105,6 +105,12 @@ fn ObjString *LoxVM.readString(&self) @local
     return asString(self.readConstant());
 }
 
+fn ushort LoxVM.readShort(&self) @local
+{
+    self.ip += 2;
+    return (ushort)((self.ip[-2] << 8) | self.ip[-1]);
+}
+
 fn LoxInterpretResult LoxVM.binaryOp(&self, char op) @local
 {
     if (!isNumber(self.peek()) && !isNumber(self.peek(1)))
@@ -303,6 +309,23 @@ fn LoxInterpretResult LoxVM.run(&self) @local
             {
                 char slot = self.readByte();
                 self.stack[slot] = self.peek();
+            }
+
+            /* Jump Instructions */
+            case JUMP:
+            {
+                ushort offset = self.readShort();
+                self.ip += offset;
+            }
+            case JUMP_IF_TRUE:
+            {
+                ushort offset = self.readShort();
+                if (!isFalsey(self.peek(0))) self.ip += offset;
+            }
+            case JUMP_IF_FALSE:
+            {
+                ushort offset = self.readShort();
+                if (isFalsey(self.peek(0))) self.ip += offset;
             }
         }
     }

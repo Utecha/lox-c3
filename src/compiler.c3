@@ -66,7 +66,7 @@ ParseRule[*] rules = {
     [TokenType.IDENTIFIER.ordinal]  = { &Compiler.variable, null,               NONE },
     [TokenType.NUMBER.ordinal]      = { &Compiler.number,   null,               NONE },
     [TokenType.STRING.ordinal]      = { &Compiler.string,   null,               NONE },
-    [TokenType.AND.ordinal]         = { null,               null,               NONE },
+    [TokenType.AND.ordinal]         = { null,               &Compiler.and,      AND },
     [TokenType.CLASS.ordinal]       = { null,               null,               NONE },
     [TokenType.ELSE.ordinal]        = { null,               null,               NONE },
     [TokenType.FALSE.ordinal]       = { &Compiler.literal,  null,               NONE },
@@ -74,7 +74,7 @@ ParseRule[*] rules = {
     [TokenType.FUN.ordinal]         = { null,               null,               NONE },
     [TokenType.IF.ordinal]          = { null,               null,               NONE },
     [TokenType.NIL.ordinal]         = { &Compiler.literal,  null,               NONE },
-    [TokenType.OR.ordinal]          = { null,               null,               NONE },
+    [TokenType.OR.ordinal]          = { null,               &Compiler.or,       OR },
     [TokenType.PRINT.ordinal]       = { null,               null,               NONE },
     [TokenType.RETURN.ordinal]      = { null,               null,               NONE },
     [TokenType.SUPER.ordinal]       = { null,               null,               NONE },
@@ -196,6 +196,26 @@ fn void Compiler.emitBytes(&self, char byte1, char byte2)
 {
     self.emitByte(byte1);
     self.emitByte(byte2);
+}
+
+fn int Compiler.emitJump(&self, char instruction)
+{
+    self.emitByte(instruction);
+    self.emitByte(0xff);
+    self.emitByte(0xff);
+    return self.currentChunk().code.size - 2;
+}
+
+fn void Compiler.patchJump(&self, int offset)
+{
+    int jump = self.currentChunk().code.size - offset - 2;
+    if (jump > ushort.max)
+    {
+        self.parser.errorPrev("Too much code to jump over");
+    }
+
+    self.currentChunk().code[offset] = (char)(jump >> 8) & 0xff;
+    self.currentChunk().code[offset + 1] = (char)jump & 0xff;
 }
 
 fn char Compiler.makeConstant(&self, Value value)
@@ -462,6 +482,33 @@ fn void Compiler.defineVariable(&self, char global)
     self.emitBytes(obyte(DEFINE_GLOBAL), global);
 }
 
+fn void Compiler.and(&self, bool canAssign)
+{
+    int endJump = self.emitJump(obyte(JUMP_IF_FALSE));
+
+    self.emitByte(obyte(POP));
+    self.parsePrecedence(AND);
+
+    self.patchJump(endJump);
+}
+
+fn void Compiler.or(&self, bool canAssign)
+{
+    // int elseJump = self.emitJump(obyte(JUMP_IF_FALSE));
+    // int endJump = self.emitJump(obyte(JUMP));
+    //
+    // self.patchJump(elseJump);
+    // self.emitByte(obyte(POP));
+    //
+    // self.parsePrecedence(OR);
+    // self.patchJump(endJump);
+
+    int endJump = self.emitJump(obyte(JUMP_IF_TRUE));
+    self.emitByte(obyte(POP));
+    self.parsePrecedence(OR);
+    self.patchJump(endJump);
+}
+
 fn void Compiler.expression(&self)
 {
     self.parsePrecedence(ASSIGNMENT);
@@ -484,6 +531,24 @@ fn void Compiler.expressionStatement(&self)
     self.emitByte(obyte(POP));
 }
 
+fn void Compiler.ifStatement(&self)
+{
+    self.parser.consume(LPAREN, "Expected '(' after 'if'");
+    self.expression();
+    self.parser.consume(RPAREN, "Expected '(' after if condition");
+
+    int thenJump = self.emitJump(obyte(JUMP_IF_FALSE));
+    self.emitByte(obyte(POP));
+    self.statement();
+
+    int elseJump = self.emitJump(obyte(JUMP));
+    self.patchJump(thenJump);
+    self.emitByte(obyte(POP));
+
+    if (self.parser.match(ELSE)) self.statement();
+    self.patchJump(elseJump);
+}
+
 fn void Compiler.printStatement(&self)
 {
     self.expression();
@@ -495,6 +560,8 @@ fn void Compiler.statement(&self)
 {
     switch
     {
+        case self.parser.match(IF):
+            self.ifStatement();
         case self.parser.match(PRINT):
             self.printStatement();
         case self.parser.match(LBRACE):

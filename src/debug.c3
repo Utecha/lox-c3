@@ -100,26 +100,42 @@ fn int Chunk.disassembleInstruction(&self, int offset)
             return byteInstruction("GET LOCAL", self, offset);
         case SET_LOCAL:
             return byteInstruction("SET LOCAL", self, offset);
+
+        /* Jump Instructions */
+        case JUMP:
+            return jumpInstruction("JUMP", 1, self, offset);
+        case JUMP_IF_TRUE:
+            return jumpInstruction("JUMP IF TRUE", 1, self, offset);
+        case JUMP_IF_FALSE:
+            return jumpInstruction("JUMP IF FALSE", 1, self, offset);
     }
 }
 
-fn int byteInstruction(String name, Chunk *chunk, int offset)
+fn int byteInstruction(String name, Chunk *chunk, int offset) @local
 {
     char slot = chunk.code[offset + 1];
-    io::eprintfn("%-16s %4d", name, slot);
+    io::eprintfn("%-14s %4d", name, slot);
     return offset + 2;
 }
 
-fn int constantInstruction(String name, Chunk *chunk, int offset)
+fn int jumpInstruction(String name, int sign, Chunk *chunk, int offset) @local
+{
+    ushort jump = (ushort)(chunk.code[offset + 1] << 8);
+    jump |= chunk.code[offset + 2];
+    io::printfn("%-14s %4d -> %d", name, offset, offset + 3 + sign * jump);
+    return offset + 3;
+}
+
+fn int constantInstruction(String name, Chunk *chunk, int offset) @local
 {
     int constant = chunk.code[offset + 1];
-    io::eprintf("%-12s %4d '", name, constant);
+    io::eprintf("%-14s %4d '", name, constant);
     value::print(chunk.constants[constant], io::stderr());
     io::eprintfn("'");
     return offset + 2;
 }
 
-fn int simpleInstruction(String name, int offset)
+fn int simpleInstruction(String name, int offset) @local
 {
     if (name == "RETURN")
         { io::eprintfn("%s\n", name); }
