@@ -42,7 +42,8 @@ enum OpCode : char
     /* Jump Instructions */
     JUMP,           // Unconditional
     JUMP_IF_TRUE,   // Conditional
-    JUMP_IF_FALSE   // Conditional
+    JUMP_IF_FALSE,  // Conditional
+    LOOP,           // Reverse Unconditional
 }
 
 fn char obyte(OpCode code) @builtin @inline => code.ordinal;

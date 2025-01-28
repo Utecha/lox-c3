@@ -108,6 +108,8 @@ fn int Chunk.disassembleInstruction(&self, int offset)
             return jumpInstruction("JUMP IF TRUE", 1, self, offset);
         case JUMP_IF_FALSE:
             return jumpInstruction("JUMP IF FALSE", 1, self, offset);
+        case LOOP:
+            return jumpInstruction("LOOP", -1, self, offset);
     }
 }
 

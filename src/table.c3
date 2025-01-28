@@ -86,7 +86,7 @@ fn ObjString *Table.findString(&self, char[] chars, int len, uint hash)
         }
         else if (entry.key.len == len &&
                  entry.key.hash == hash &&
-                 mem::equals(&entry.key.chars[0], &chars[0], len))
+                 mem::equals(entry.key.chars.ptr, chars.ptr, len))
         {
             return entry.key;
         }

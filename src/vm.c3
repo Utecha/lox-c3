@@ -327,6 +327,11 @@ fn LoxInterpretResult LoxVM.run(&self) @local
                 ushort offset = self.readShort();
                 if (isFalsey(self.peek(0))) self.ip += offset;
             }
+            case LOOP:
+            {
+                ushort offset = self.readShort();
+                self.ip -= offset;
+            }
         }
     }
 }

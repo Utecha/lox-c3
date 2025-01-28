@@ -214,8 +214,19 @@ fn void Compiler.patchJump(&self, int offset)
         self.parser.errorPrev("Too much code to jump over");
     }
 
-    self.currentChunk().code[offset] = (char)(jump >> 8) & 0xff;
-    self.currentChunk().code[offset + 1] = (char)jump & 0xff;
+    self.currentChunk().code[offset] = ibyte((jump >> 8) & 0xff);
+    self.currentChunk().code[offset + 1] = ibyte(jump & 0xff);
+}
+
+fn void Compiler.emitLoop(&self, int loopStart)
+{
+    self.emitByte(obyte(LOOP));
+
+    int offset = self.currentChunk().code.size - loopStart + 2;
+    if (offset > ushort.max) self.parser.errorPrev("Loop body is too large to jump over");
+
+    self.emitByte(ibyte((offset >> 8) & 0xff));
+    self.emitByte(ibyte(offset & 0xff));
 }
 
 fn char Compiler.makeConstant(&self, Value value)
@@ -531,11 +542,62 @@ fn void Compiler.expressionStatement(&self)
     self.emitByte(obyte(POP));
 }
 
+fn void Compiler.forStatement(&self)
+{
+    self.beginScope();
+    // self.parser.consume(LPAREN, "Expected '(' after 'for'");
+    if (self.parser.match(SEMICOLON))
+        { /* No initializer */ }
+    else if (self.parser.match(VAR))
+        { self.varDeclaration(); }
+    else
+        { self.expressionStatement(); }
+
+    int loopStart = self.currentChunk().code.size;
+    int exitJump = -1;
+
+    if (!self.parser.match(SEMICOLON))
+    {
+        self.expression();
+        self.parser.consume(SEMICOLON, "Expected ';' after for condition");
+
+        // Jump out of the loop if the condition is false
+        exitJump = self.emitJump(obyte(JUMP_IF_FALSE));
+        self.emitByte(obyte(POP)); // Condition
+    }
+
+    // self.parser.consume(RPAREN, "Expected '(' after for clauses");
+    if (!self.parser.match(SEMICOLON))
+    {
+        int bodyJump = self.emitJump(obyte(JUMP));
+        int incrementStart = self.currentChunk().code.size;
+
+        self.expression();
+        self.emitByte(obyte(POP));
+        self.parser.consume(SEMICOLON, "Expected ';' after for loop increment value");
+
+        self.emitLoop(loopStart);
+        loopStart = incrementStart;
+        self.patchJump(bodyJump);
+    }
+
+    self.statement();
+    self.emitLoop(loopStart);
+
+    if (exitJump != -1)
+    {
+        self.patchJump(exitJump);
+        self.emitByte(obyte(POP)); // Condition
+    }
+
+    self.endScope();
+}
+
 fn void Compiler.ifStatement(&self)
 {
-    self.parser.consume(LPAREN, "Expected '(' after 'if'");
+    // self.parser.consume(LPAREN, "Expected '(' after 'if'");
     self.expression();
-    self.parser.consume(RPAREN, "Expected '(' after if condition");
+    // self.parser.consume(RPAREN, "Expected '(' after if condition");
 
     int thenJump = self.emitJump(obyte(JUMP_IF_FALSE));
     self.emitByte(obyte(POP));
@@ -556,14 +618,35 @@ fn void Compiler.printStatement(&self)
     self.emitByte(obyte(PRINT));
 }
 
+fn void Compiler.whileStatement(&self)
+{
+    int loopStart = self.currentChunk().code.size;
+
+    // self.parser.consume(LPAREN, "Expected '(' after 'while'");
+    self.expression();
+    // self.parser.consume(RPAREN, "Expected ')' after while condition");
+
+    int exitJump = self.emitJump(obyte(JUMP_IF_FALSE));
+    self.emitByte(obyte(POP));
+    self.statement();
+    self.emitLoop(loopStart);
+
+    self.patchJump(exitJump);
+    self.emitByte(obyte(POP));
+}
+
 fn void Compiler.statement(&self)
 {
     switch
     {
         case self.parser.match(IF):
             self.ifStatement();
+        case self.parser.match(FOR):
+            self.forStatement();
         case self.parser.match(PRINT):
             self.printStatement();
+        case self.parser.match(WHILE):
+            self.whileStatement();
         case self.parser.match(LBRACE):
         {
             self.beginScope();
