@@ -1,6 +1,5 @@
 module lox::vm::value;
-import lox::vm::mem;
-import lox::vm @norecurse;
+import lox::mem;
 import std::io @norecurse;
 
 //------------------------------------------------------------------------------

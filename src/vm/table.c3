@@ -1,8 +1,6 @@
 module lox::vm::table;
-import lox::common;
-import lox::vm::mem;
 import lox::vm::value;
-import lox::vm @norecurse;
+import lox::mem, lox::utils;
 
 //------------------------------------------------------------------------------
 // Lox \ VM \ Table

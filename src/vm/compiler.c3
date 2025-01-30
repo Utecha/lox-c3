@@ -1,7 +1,5 @@
 module lox::vm::compiler;
-import lox::lexer;
-import lox::token;
-import lox::vm;
+import lox::debug, lox::lexer, lox::token, lox::utils, lox::vm;
 import std::io @norecurse;
 
 //------------------------------------------------------------------------------
@@ -94,15 +92,22 @@ fn void Parser.errorAt(&self, Token *token, String message)
     if (self.panicMode) return;
     self.panicMode = true;
 
-    io::eprintf("[line %d] Error", token.line);
+    utils::log(
+        ERROR,
+        "{ %sfile%s %s%s%s : %sline%s %d }",
+        utils::SBLUE, utils::SRESET,
+        utils::SGREEN, self.lexer.file, utils::SRESET,
+        utils::SBLUE, utils::SRESET, token.line,
+        noNewline: true
+    );
     switch (token.type)
     {
         case ERROR: break;
-        case EOF:   io::eprintf(" at end");
-        default:    io::eprintf(" at '%s'", token.lexeme);
+        case EOF:   utils::log(NONE, " at EOF", noNewline: true);
+        default:    utils::log(NONE, " at '%s'", token.lexeme, noNewline: true);
     }
 
-    io::eprintfn(": %s", message);
+    utils::log(NONE, ": %s", message);
     self.hadError = true;
 }
 
@@ -537,15 +542,21 @@ fn void Compiler.block(&self)
 
 fn void Compiler.expressionStatement(&self)
 {
-    self.expression();
-    self.parser.consume(SEMICOLON, "Expected ';' after expression");
-    self.emitByte(obyte(POP));
+    if (!self.parser.check(SEMICOLON))
+    {
+        self.expression();
+        self.parser.consume(SEMICOLON, "Expected ';' after expression");
+        self.emitByte(obyte(POP));
+        return;
+    }
+    
+    self.parser.advance();
 }
 
 fn void Compiler.forStatement(&self)
 {
     self.beginScope();
-    // self.parser.consume(LPAREN, "Expected '(' after 'for'");
+    self.parser.consume(LPAREN, "Expected '(' after 'for'");
     if (self.parser.match(SEMICOLON))
         { /* No initializer */ }
     else if (self.parser.match(VAR))
@@ -566,15 +577,14 @@ fn void Compiler.forStatement(&self)
         self.emitByte(obyte(POP)); // Condition
     }
 
-    // self.parser.consume(RPAREN, "Expected '(' after for clauses");
-    if (!self.parser.match(SEMICOLON))
+    if (!self.parser.match(RPAREN))
     {
         int bodyJump = self.emitJump(obyte(JUMP));
         int incrementStart = self.currentChunk().code.size;
 
         self.expression();
         self.emitByte(obyte(POP));
-        self.parser.consume(SEMICOLON, "Expected ';' after for loop increment value");
+        self.parser.consume(RPAREN, "Expected ')' after for loop increment value");
 
         self.emitLoop(loopStart);
         loopStart = incrementStart;
@@ -595,9 +605,9 @@ fn void Compiler.forStatement(&self)
 
 fn void Compiler.ifStatement(&self)
 {
-    // self.parser.consume(LPAREN, "Expected '(' after 'if'");
+    self.parser.consume(LPAREN, "Expected '(' after 'if'");
     self.expression();
-    // self.parser.consume(RPAREN, "Expected '(' after if condition");
+    self.parser.consume(RPAREN, "Expected ')' after if condition");
 
     int thenJump = self.emitJump(obyte(JUMP_IF_FALSE));
     self.emitByte(obyte(POP));
@@ -622,9 +632,9 @@ fn void Compiler.whileStatement(&self)
 {
     int loopStart = self.currentChunk().code.size;
 
-    // self.parser.consume(LPAREN, "Expected '(' after 'while'");
+    self.parser.consume(LPAREN, "Expected '(' after 'while'");
     self.expression();
-    // self.parser.consume(RPAREN, "Expected ')' after while condition");
+    self.parser.consume(RPAREN, "Expected ')' after while condition");
 
     int exitJump = self.emitJump(obyte(JUMP_IF_FALSE));
     self.emitByte(obyte(POP));
@@ -710,10 +720,10 @@ fn void Compiler.synchronize(&self)
     }
 }
 
-fn bool compile(LoxVM *vm, Chunk *chunk, char *source)
+fn bool compile(LoxVM *vm, String file, Chunk *chunk, char *source)
 {
     Lexer lexer;
-    lexer.init(source);
+    lexer.init(file, source);
 
     Parser parser;
     parser.lexer = lexer;

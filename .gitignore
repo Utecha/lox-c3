@@ -1,5 +1,11 @@
-build/lox
-build/testrun
-build/llvm_ir
+# Build Directory
+# The directory has to stay, but everything in it can go (except the .gitkeep)
+build/*
+!build/.gitkeep
+
+# Scratch files
+scratch.*
+
+# Random stuff
 Issues.md
-current.lox
+undefined

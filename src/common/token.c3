@@ -43,6 +43,7 @@ enum TokenType : int
     FUN,
     IF,
     NIL,
+    NOT,
     OR,
     PRINT,
     RETURN,

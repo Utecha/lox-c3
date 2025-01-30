@@ -41,7 +41,7 @@ enum OpCode : char
 
     /* Jump Instructions */
     JUMP,           // Unconditional
-    JUMP_IF_TRUE,   // Conditional
+    JUMP_IF_TRUE,   // Conditional, exists so OR isnt slower than AND
     JUMP_IF_FALSE,  // Conditional
     LOOP,           // Reverse Unconditional
 }

@@ -1,6 +1,6 @@
-module lox::vm::list (<Type>);
-import lox::common;
-import lox::vm::mem;
+module lox::list (<Type>);
+import lox::utils;
+import lox::mem;
 
 //------------------------------------------------------------------------------
 // Lox \ VM \ Buffer

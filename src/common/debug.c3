@@ -1,18 +1,55 @@
-module lox::vm::debug;
+module lox::debug;
 
 //------------------------------------------------------------------------------
-// Lox \ Debug
+// Lox | Debug
 //------------------------------------------------------------------------------
 
 const bool DUMP_CHUNK = false;
-const bool DUMP_TOKENS = false;
-const bool TRACE_INSTRUCTIONS = false;
-const bool ENABLE_ALL = true;
+const bool DUMP_TOKENS = true;
+const bool TRACE_INSTRUCTIONS = true;
+const bool ENABLE_ALL = false;
 
 //------------------------------------------------------------------------------
-// Lox \ Debug \ Chunk
+// Lox | Debug | Lexer
 //------------------------------------------------------------------------------
-module lox::vm::debug::chunk @if($feature(DEBUG));
+
+module lox::debug::lexer @if($feature(DEBUG));
+import lox::lexer;
+import lox::token;
+import lox::utils;
+
+fn void dumpTokens(String file, char *source)
+{
+    Lexer lexer;
+    lexer.init(file, source);
+
+    int line = -1;
+    for (;;)
+    {
+        Token token = lexer.getNextToken();
+        if (token.line != line)
+        {
+            utils::log(DEBUG, "%4d ", token.line, noNewline: true);
+            line = token.line;
+        }
+        else
+        {
+            utils::log(DEBUG, "   | ", noNewline: true);
+        }
+
+        if (token.type == STRING)
+            { utils::log(NONE, "%-10s -- %s", token.type, token.lexeme); }
+        else
+            { utils::log(NONE, "%-10s -- '%s'", token.type, token.lexeme); }
+
+        if (token.type == TokenType.EOF) break;
+    }
+}
+
+//------------------------------------------------------------------------------
+// Lox | Debug | Chunk
+//------------------------------------------------------------------------------
+module lox::debug::chunk @if($feature(DEBUG));
 import lox::vm::chunk;
 import lox::vm::opcodes;
 import lox::vm::value;

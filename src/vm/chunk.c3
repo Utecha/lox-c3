@@ -1,6 +1,5 @@
 module lox::vm::chunk;
-import lox::vm::list;
-import lox::vm::mem;
+import lox::list, lox::mem;
 import lox::vm::value;
 
 //------------------------------------------------------------------------------

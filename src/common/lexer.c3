@@ -1,20 +1,27 @@
 module lox::lexer @private;
-import lox::common;
-import lox::token;
+import lox::token, lox::utils, lox::list;
 
 //------------------------------------------------------------------------------
 // Lox \ Lexer
 //------------------------------------------------------------------------------
 
+fault LexError
+{
+    NESTED_COMMENT,
+    UNTERMINATED_COMMENT,
+}
+
 struct Lexer @public
 {
+    String file;
     char *start;
     char *current;
     int line;
 }
 
-fn void Lexer.init(&self, char *source) @public
+fn void Lexer.init(&self, String file, char *source) @public
 {
+    self.file = file;
     self.start = source;
     self.current = source;
     self.line = 1;
@@ -22,9 +29,15 @@ fn void Lexer.init(&self, char *source) @public
 
 fn Token Lexer.getNextToken(&self) @public
 {
-    self.skipWhitespace();
-    self.start = self.current;
+    if (catch error = self.skipWhitespace())
+    {
+        case LexError.NESTED_COMMENT:
+            return self.errorToken("Lox does not support nested block comments");
+        case LexError.UNTERMINATED_COMMENT:
+            return self.errorToken("Unterminated comment block");
+    }
 
+    self.start = self.current;
     if (self.eof()) return self.makeToken(EOF);
 
     char c = self.advance();
@@ -49,9 +62,11 @@ fn Token Lexer.getNextToken(&self) @public
         case '>':   return self.makeTokenDuo('=', GTEQ, GT);
         case '<':   return self.makeTokenDuo('=', LTEQ, LT);
         case '"':   return self.string();
+        case '|':   if (self.match('|')) return self.makeToken(OR);
+        case '&':   if (self.match('&')) return self.makeToken(AND);
     }
 
-    return self.errorToken("Unexpected character");
+    return self.errorToken(string::format("Unexpected character: %c", c, allocator: allocator::heap()));
 }
 
 fn bool Lexer.eof(&self)
@@ -106,7 +121,7 @@ fn Token Lexer.errorToken(&self, String message)
 
 fn Token Lexer.identifier(&self)
 {
-    while (isAlnum(self.peek())) self.advance();
+    while (isValidIdentifier(self.peek())) self.advance();
 
     switch (self.start[0 : self.current - self.start])
     {
@@ -118,6 +133,7 @@ fn Token Lexer.identifier(&self)
         case "fun":     return self.makeToken(FUN);
         case "if":      return self.makeToken(IF);
         case "nil":     return self.makeToken(NIL);
+        case "not":     return self.makeToken(NOT);
         case "or":      return self.makeToken(OR);
         case "print":   return self.makeToken(PRINT);
         case "return":  return self.makeToken(RETURN);
@@ -140,6 +156,9 @@ fn Token Lexer.number(&self)
     {
         self.advance();
         while (isDigit(self.peek())) self.advance();
+        
+        if (self.peek() == '.')
+            { return self.errorToken("Invalid floating point literal"); }
     }
 
     return self.makeToken(NUMBER);
@@ -160,7 +179,26 @@ fn Token Lexer.string(&self)
     return self.makeToken(STRING);
 }
 
-fn void Lexer.skipWhitespace(&self)
+fn void! Lexer.skipBlockComment(&self)
+{
+    while (true)
+    {
+        if (self.eof()) return LexError.UNTERMINATED_COMMENT?;
+        self.advance();
+        
+        if (self.peek() == '/' && self.peek(1) == '*')
+            { return LexError.NESTED_COMMENT?; }
+
+        if (self.peek() == '*' && self.peek(1) == '/')
+        {
+            self.advance();
+            self.advance();
+            return;
+        }
+    }
+}
+
+fn void! Lexer.skipWhitespace(&self)
 {
     for (;;)
     {
@@ -180,6 +218,10 @@ fn void Lexer.skipWhitespace(&self)
                     while (self.peek() != '\n' && !self.eof())
                         { self.advance(); }
                 }
+                else if (self.peek(1) == '*')
+                {
+                    self.skipBlockComment()!;
+                }
                 else
                 {
                     return;
@@ -188,4 +230,34 @@ fn void Lexer.skipWhitespace(&self)
                 return;
         }
     }
+}
+
+fn bool isLower(char c)
+{
+    return (c >= 'a' && c <= 'z');
+}
+
+fn bool isUpper(char c)
+{
+    return (c >= 'A' && c <= 'Z');
+}
+
+fn bool isAlpha(char c)
+{
+    return isLower(c) || isUpper(c);
+}
+
+fn bool isDigit(char c)
+{
+    return (c >= '0' && c <= '9');
+}
+
+fn bool isAlnum(char c)
+{
+    return isAlpha(c) || isDigit(c);
+}
+
+fn bool isValidIdentifier(char c)
+{
+    return isAlnum(c) || c == '_';
 }

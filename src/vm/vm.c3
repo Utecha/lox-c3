@@ -1,5 +1,5 @@
 module lox::vm @private;
-import lox::common;
+import lox::debug, lox::mem, lox::utils;
 import std::io @norecurse;
 
 //------------------------------------------------------------------------------
@@ -17,6 +17,7 @@ enum LoxInterpretResult @public
 
 struct LoxVM @public
 {
+    String file;    // Temporary until I introduce modules
     char *ip;
     Chunk *chunk;
     Value[STACK_MAX] stack;
@@ -48,23 +49,30 @@ fn void LoxVM.free(&self) @public
 
 fn void LoxVM.rtError(&self, String fmt, args...)
 {
-    io::eprintf("Runtime Error: ");
-    io::eprintfn(fmt, ...args);
+    utils::log(ERROR, fmt, ...args);
 
     int instruction = (int)(self.ip - self.chunk.code.entries - 1);
     int line = self.chunk.getLine(instruction);
-    io::eprintfn("[line %d] in script", line);
+    utils::log(
+        NONE,
+        "{ %sfile%s %s%s%s : %sline%s %d] in main",
+        utils::SBLUE, utils::SRESET,
+        utils::SLIGHTGRAY, self.file, utils::SRESET,
+        utils::SBLUE, utils::SRESET, line
+    );
 
     self.resetStack();
 }
 
-fn LoxInterpretResult LoxVM.interpret(&self, char *source) @public
+fn LoxInterpretResult LoxVM.interpret(&self, String file, char *source) @public
 {
+    self.file = file;
+
     Chunk chunk;
     chunk.new();
     defer chunk.free();
 
-    if (!compiler::compile(self, &chunk, source))
+    if (!compiler::compile(self, file, &chunk, source))
         { return LoxInterpretResult.COMPILE_ERROR; }
 
     self.chunk = &chunk;

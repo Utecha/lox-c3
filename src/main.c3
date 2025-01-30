@@ -1,15 +1,8 @@
 module lox;
-import std::io;
 
 //------------------------------------------------------------------------------
 // Lox
 //------------------------------------------------------------------------------
-
-macro elog(String fmt, args...) @builtin
-{
-    io::eprintf("Error: ");
-    io::eprintfn(fmt, ...args);
-}
 
 fn int main(String[] args)
 {
@@ -26,9 +19,8 @@ fn int main(String[] args)
         case 2:
             exit = cli::runFile(&vm, args[1]);
         default:
-            elog("Usage: lox [script]");
+            utils::log(WARNING, "Usage: %slox%s [script]", utils::SYELLOW, utils::SRESET);
             exit = 64;
-
     }
 
     return exit;
