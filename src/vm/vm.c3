@@ -1,268 +1,290 @@
 module lox::vm @private;
-import lox::debug, lox::mem, lox::utils;
+import lox::cli::utils, lox::debug, lox::gc;
 import std::io @norecurse;
 
 //------------------------------------------------------------------------------
-// Lox \ VM
+// Lox | VM @public
 //------------------------------------------------------------------------------
 
-const uint STACK_MAX = 256;
-
-enum LoxInterpretResult @public
+enum VmResult @public
 {
     OK,
     COMPILE_ERROR,
     RUNTIME_ERROR
 }
 
-struct LoxVM @public
+struct Vm @public
 {
-    String file;    // Temporary until I introduce modules
-    char *ip;
+    String file;
     Chunk *chunk;
-    Value[STACK_MAX] stack;
-    Value *stackTop;
+    char *ip;
+    Value[MAX_STACK] stack;
+    Value *stack_top;
     Obj *objects;
     Table strings;
     Table globals;
 }
 
-fn void LoxVM.init(&self) @public
+fn void Vm.init(&self) @public
 {
-    self.resetStack();
+    self.reset_stack();
     self.objects = null;
-    self.strings.zero();
-    self.globals.zero();
+    self.strings.init();
+    self.globals.init();
 }
 
-fn void LoxVM.resetStack(&self)
-{
-    self.stackTop = &self.stack[0];
-}
-
-fn void LoxVM.free(&self) @public
+fn void Vm.free(&self) @public
 {
     self.globals.free();
     self.strings.free();
-    mem::freeObjects(self);
+    gc::free_objects(self);
 }
 
-fn void LoxVM.rtError(&self, String fmt, args...)
+fn VmResult Vm.interpret(&self, String file, char *source) @public
 {
-    utils::log(ERROR, fmt, ...args);
-
-    int instruction = (int)(self.ip - self.chunk.code.entries - 1);
-    int line = self.chunk.getLine(instruction);
-    utils::log(
-        NONE,
-        "{ %sfile%s %s%s%s : %sline%s %d] in main",
-        utils::SBLUE, utils::SRESET,
-        utils::SLIGHTGRAY, self.file, utils::SRESET,
-        utils::SBLUE, utils::SRESET, line
-    );
-
-    self.resetStack();
-}
-
-fn LoxInterpretResult LoxVM.interpret(&self, String file, char *source) @public
-{
-    self.file = file;
-
     Chunk chunk;
     chunk.new();
     defer chunk.free();
 
     if (!compiler::compile(self, file, &chunk, source))
-        { return LoxInterpretResult.COMPILE_ERROR; }
+        { return VmResult.COMPILE_ERROR; }
 
+    self.file = file;
     self.chunk = &chunk;
     self.ip = self.chunk.code.entries;
 
     return self.run();
 }
 
-fn void LoxVM.push(&self, Value value) @public
+fn void Vm.push(&self, Value value) @public
 {
-    *self.stackTop = value;
-    self.stackTop++;
+    *self.stack_top = value;
+    self.stack_top++;
 }
 
-fn Value LoxVM.pop(&self) @public
+fn Value Vm.pop(&self) @public
 {
-    self.stackTop--;
-    return *self.stackTop;
+    self.stack_top--;
+    return *self.stack_top;
 }
 
-fn Value LoxVM.peek(&self, int distance = 0)
+//------------------------------------------------------------------------------
+// Lox | VM @private
+//------------------------------------------------------------------------------
+
+const uint MAX_STACK = 256;
+
+fn void Vm.reset_stack(&self)
 {
-    return self.stackTop[-1 - distance];
+    self.stack_top = &self.stack[0];
 }
 
-fn char LoxVM.readByte(&self) @local
+fn void Vm.rt_error(&self, String fmt, args...)
+{
+    utils::logn(ERROR, fmt, ...args);
+
+    int instruction = (int)(self.ip - self.chunk.code.entries - 1);
+    int line = self.chunk.get_line(instruction);
+    utils::logn(
+        NONE,
+        "{ %sfile%s %s%s%s : %sline%s %d } in main",
+        utils::BLUE, utils::RESET,
+        utils::GREEN, self.file, utils::RESET,
+        utils::BLUE, utils::RESET, line
+    );
+
+    self.reset_stack();
+}
+
+fn Value Vm.peek(&self, int distance = 0)
+{
+    return self.stack_top[-1 - distance];
+}
+
+fn char Vm.read_byte(&self)
 {
     return *self.ip++;
 }
 
-fn Value LoxVM.readConstant(&self) @local
-{
-    return self.chunk.constants[self.readByte()];
-}
-
-fn ObjString *LoxVM.readString(&self) @local
-{
-    return asString(self.readConstant());
-}
-
-fn ushort LoxVM.readShort(&self) @local
+fn ushort Vm.read_short(&self)
 {
     self.ip += 2;
     return (ushort)((self.ip[-2] << 8) | self.ip[-1]);
 }
 
-fn LoxInterpretResult LoxVM.binaryOp(&self, char op) @local
+fn Value Vm.read_constant(&self)
 {
-    if (!isNumber(self.peek()) && !isNumber(self.peek(1)))
+    return self.chunk.constants[self.read_byte()];
+}
+
+fn ObjString *Vm.read_string(&self)
+{
+    return as_string(self.read_constant());
+}
+
+fn VmResult Vm.binary_op(&self, char op)
+{
+    if (!is_number(self.peek()) && !is_number(self.peek(1)))
     {
-        self.rtError("Binary (non-addition) operands must be numbers");
-        return LoxInterpretResult.RUNTIME_ERROR;
+        self.rt_error("Binary (non_addition) operands must be numbers");
+        return VmResult.RUNTIME_ERROR;
     }
 
-    double b = asNumber(self.pop());
-    double a = asNumber(self.pop());
+    double b = as_number(self.pop());
+    double a = as_number(self.pop());
 
     switch (op)
     {
-        case '+':
-            self.push(numberVal(a + b));
-        case '-':
-            self.push(numberVal(a - b));
-        case '*':
-            self.push(numberVal(a * b));
+        case '-':   self.push(number_val(a - b));
+        case '*':   self.push(number_val(a * b));
         case '/':
-            if (b == 0)
+        {
+            if (b == 0.0)
             {
-                self.rtError("Division by Zero");
-                return LoxInterpretResult.RUNTIME_ERROR;
+                self.rt_error("Division by Zero");
+                return VmResult.RUNTIME_ERROR;
             }
-            self.push(numberVal(a / b));
-        case '>':
-            self.push(boolVal(a > b));
-        case '<':
-            self.push(boolVal(a < b));
-        default:
-            self.rtError("Unknown binary operator: %c", op);
-            return LoxInterpretResult.RUNTIME_ERROR;
+
+            self.push(number_val(a / b));
+        }
+        case '%':
+        {
+            if (b == 0.0)
+            {
+                self.rt_error("Division by Zero");
+                return VmResult.RUNTIME_ERROR;
+            }
+
+            self.push(number_val(a % b));
+        }
+        case '>':   self.push(bool_val(a > b));
+        case '<':   self.push(bool_val(a < b));
+        default:    return VmResult.RUNTIME_ERROR;
     }
 
-    return LoxInterpretResult.OK;
+    return VmResult.OK;
 }
 
-fn bool isFalsey(Value value)
+fn bool is_falsey(Value value)
 {
-    return isNil(value) || (isBool(value) && !asBool(value));
+    return is_nil(value) || (is_bool(value) && !as_bool(value));
 }
 
-fn void LoxVM.concatenate(&self) @local
+fn void Vm.concatenate(&self)
 {
-    ObjString *b = asString(self.pop());
-    ObjString *a = asString(self.pop());
+    ObjString *b = as_string(self.pop());
+    ObjString *a = as_string(self.pop());
 
     int len = a.len + b.len;
-    char *chars = mem::lalloc(char, len + 1);
-    mem::copy(chars, a.chars, a.len);
-    mem::copy(chars + a.len, b.chars, b.len);
+    char *chars = memory::lalloc(char, len + 1);
+    mem::copy(chars, a.value.ptr, a.len);
+    mem::copy(chars + a.len, b.value.ptr, b.len);
     chars[len] = '\0';
 
-    ObjString *result = value::takeString(self, chars[:len], len);
-    self.push(objVal(result));
+    ObjString *result = value::take_string(self, chars[:len], len);
+    self.push(obj_val(result));
 }
 
-fn LoxInterpretResult LoxVM.run(&self) @local
+fn void Vm.trace(&self)
+@if($feature(DEBUG) &&& (debug::TRACE_EXEC ||| debug::ENABLE_ALL))
+{
+    io::eprintf("        ");
+    for (Value *slot = &self.stack[0]; slot < self.stack_top; slot++)
+    {
+        io::eprintf("[ ");
+        value::print(*slot, io::stderr());
+        io::eprintf(" ]");
+    }
+    io::eprint("\n");
+    self.chunk.disassemble_instruction((int)(self.ip - self.chunk.code.entries));
+}
+
+fn VmResult Vm.run(&self)
 {
     for (;;)
     {
-        $if $feature(DEBUG) &&& (debug::TRACE_INSTRUCTIONS ||| debug::ENABLE_ALL):
-            io::eprintf("        ");
-            for (Value *slot = &self.stack[0]; slot < self.stackTop; slot++)
-            {
-                io::eprintf("[ ");
-                value::print(*slot, io::stderr());
-                io::eprintf(" ]");
-            }
-            io::eprint("\n");
-            self.chunk.disassembleInstruction((int)(self.ip - self.chunk.code.entries));
+        $if $feature(DEBUG) &&& (debug::TRACE_EXEC ||| debug::ENABLE_ALL):
+            self.trace();
         $endif
 
         OpCode instruction;
-        switch (instruction = OpCode.from_ordinal(self.readByte()))
+        switch (instruction = OpCode.from_ordinal(self.read_byte()))
         {
             /* Simple Instructions */
             case RETURN:
-                return LoxInterpretResult.OK;
+                return VmResult.OK;
             case NIL:
-                self.push(nilVal());
+                self.push(nil_val());
             case TRUE:
-                self.push(boolVal(true));
+                self.push(bool_val(true));
             case FALSE:
-                self.push(boolVal(false));
+                self.push(bool_val(false));
             case POP:
                 self.pop();
             case ADD:
             {
-                if (isString(self.peek()) && isString(self.peek(1)))
+                if (is_string(self.peek()) && is_string(self.peek(1)))
                 {
                     self.concatenate();
                 }
-                else if (isNumber(self.peek()) && isNumber(self.peek(1)))
+                else if (is_number(self.peek()) && is_number(self.peek(1)))
                 {
-                    self.binaryOp('+');
+                    double b = as_number(self.pop());
+                    double a = as_number(self.pop());
+                    self.push(number_val(a + b));
                 }
                 else
                 {
-                    self.rtError("Binary (addition) operands must be numbers or strings");
-                    return LoxInterpretResult.RUNTIME_ERROR;
+                    self.rt_error("Binary (addition) operands must be numbers or strings (but not both)");
+                    return VmResult.RUNTIME_ERROR;
                 }
             }
             case SUBTRACT:
             {
-                LoxInterpretResult result = self.binaryOp('-');
+                VmResult result = self.binary_op('-');
                 if (result != OK) return result;
             }
             case MULTIPLY:
             {
-                LoxInterpretResult result = self.binaryOp('*');
+                VmResult result = self.binary_op('*');
                 if (result != OK) return result;
             }
             case DIVIDE:
             {
-                LoxInterpretResult result = self.binaryOp('/');
+                VmResult result = self.binary_op('/');
+                if (result != OK) return result;
+            }
+            case MODULO:
+            {
+                VmResult result = self.binary_op('%');
                 if (result != OK) return result;
             }
             case NEGATE:
             {
-                if (!isNumber(self.peek()))
+                if (!is_number(self.peek()))
                 {
-                    self.rtError("Negation operand must be a number");
-                    return LoxInterpretResult.RUNTIME_ERROR;
+                    self.rt_error("Negation operand must be a number");
+                    return VmResult.RUNTIME_ERROR;
                 }
-                self.push(numberVal(-asNumber(self.pop())));
+
+                self.push(number_val(-as_number(*(--self.stack_top))));
             }
             case NOT:
-                self.push(boolVal(isFalsey(self.pop())));
+                self.push(bool_val(is_falsey(self.pop())));
             case EQUAL:
             {
                 Value b = self.pop();
                 Value a = self.pop();
-                self.push(boolVal(value::equals(a, b)));
+                self.push(bool_val(value::equals(a, b)));
             }
             case GREATER:
             {
-                LoxInterpretResult result = self.binaryOp('>');
+                VmResult result = self.binary_op('>');
                 if (result != OK) return result;
             }
             case LESS:
             {
-                LoxInterpretResult result = self.binaryOp('<');
+                VmResult result = self.binary_op('<');
                 if (result != OK) return result;
             }
             case PRINT:
@@ -274,70 +296,70 @@ fn LoxInterpretResult LoxVM.run(&self) @local
             /* Constant Instructions */
             case CONSTANT:
             {
-                Value constant = self.readConstant();
+                Value constant = self.read_constant();
                 self.push(constant);
             }
             case DEFINE_GLOBAL:
             {
-                ObjString *name = self.readString();
+                ObjString *name = self.read_string();
                 self.globals.set(name, self.peek());
                 self.pop();
             }
             case GET_GLOBAL:
             {
-                ObjString *name = self.readString();
+                ObjString *name = self.read_string();
                 Value value;
 
                 if (!self.globals.get(name, &value))
                 {
-                    self.rtError("Undefined variable '%s'", name.chars);
-                    return LoxInterpretResult.RUNTIME_ERROR;
+                    self.rt_error("Undefined variable '%s", name.value);
+                    return VmResult.RUNTIME_ERROR;
                 }
 
                 self.push(value);
             }
             case SET_GLOBAL:
             {
-                ObjString *name = self.readString();
+                ObjString *name = self.read_string();
                 if (self.globals.set(name, self.peek()))
                 {
                     self.globals.delete(name);
-                    self.rtError("Undefined variable '%s'", name.chars);
-                    return LoxInterpretResult.RUNTIME_ERROR;
+                    self.rt_error("Undefined variable '%s'", name.value);
+                    return VmResult.RUNTIME_ERROR;
                 }
             }
 
             /* Byte Instructions */
             case GET_LOCAL:
             {
-                char slot = self.readByte();
+                char slot = self.read_byte();
                 self.push(self.stack[slot]);
             }
             case SET_LOCAL:
             {
-                char slot = self.readByte();
+                char slot = self.read_byte();
                 self.stack[slot] = self.peek();
             }
 
             /* Jump Instructions */
             case JUMP:
             {
-                ushort offset = self.readShort();
+                ushort offset = self.read_short();
                 self.ip += offset;
             }
             case JUMP_IF_TRUE:
             {
-                ushort offset = self.readShort();
-                if (!isFalsey(self.peek(0))) self.ip += offset;
+                ushort offset = self.read_short();
+                if (!is_falsey(self.peek(0))) self.ip += offset;
             }
             case JUMP_IF_FALSE:
             {
-                ushort offset = self.readShort();
-                if (isFalsey(self.peek(0))) self.ip += offset;
+                ushort offset = self.read_short();
+                if (is_falsey(self.peek(0))) self.ip += offset;
             }
             case LOOP:
             {
-                ushort offset = self.readShort();
+                ushort offset = self.read_short();
                 self.ip -= offset;
             }
         }

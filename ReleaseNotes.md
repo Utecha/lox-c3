@@ -1,4 +1,5 @@
 - [0.1.1](#011)
+- [0.1.1-1](#011-1)
 
 ### 0.1.1
 
@@ -27,3 +28,13 @@ This is, in part, preparation for *eventually* adding a module system.
     - For POSIX compliant OS's, you only need to run `c3c build` or `c3c run`
 - Updated .gitignore.
 - Version displayed in the REPL is now pulled directly from the `project.json`.
+
+### 0.1.1-1
+
+Finished the initial refactor. The only real change, per-se, for this update is the addition
+of the modulo operator (and of course the refactor, but that doesn't really affect much for
+the end user).
+
+I also removed the `NOT` token as it was redudant, and switched the negate operator to
+a slightly more optimized variant. Ideally, along with functions returning, next update should
+also include bitwise and bitshift operators.

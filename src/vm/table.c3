@@ -1,9 +1,9 @@
 module lox::vm::table;
 import lox::vm::value;
-import lox::mem, lox::utils;
+import lox::cli::utils, lox::gc::memory;
 
 //------------------------------------------------------------------------------
-// Lox \ VM \ Table
+// Lox | VM | Table
 //------------------------------------------------------------------------------
 
 const float MAX_LOAD_FACTOR = 0.75;
@@ -17,29 +17,29 @@ struct Entry
 struct Table
 {
     int capacity;
-    int size;
+    int count;
     Entry *entries;
 }
 
-fn void Table.zero(&self)
+fn void Table.init(&self)
 {
     self.capacity = 0;
-    self.size = 0;
+    self.count = 0;
     self.entries = null;
 }
 
 fn Table *Table.new(&self, int capacity = 8)
 {
-    self.zero();
-    self.entries = mem::lalloc(Entry, capacity);
+    self.init();
+    self.entries = memory::lalloc(Entry, capacity);
     self.capacity = capacity;
     return self;
 }
 
 fn void Table.free(&self)
 {
-    mem::lfree(Entry, self.entries, self.capacity);
-    self.zero();
+    memory::lfree(Entry, self.entries, self.capacity);
+    self.init();
 }
 
 fn Entry *Table.find(&self, ObjString *key)
@@ -52,7 +52,7 @@ fn Entry *Table.find(&self, ObjString *key)
         Entry *entry = &self.entries[index];
         if (entry.key == null)
         {
-            if (isNil(entry.value))
+            if (is_nil(entry.value))
             {
                 return tombstone != null ? tombstone : entry;
             }
@@ -70,9 +70,9 @@ fn Entry *Table.find(&self, ObjString *key)
     }
 }
 
-fn ObjString *Table.findString(&self, char[] chars, int len, uint hash)
+fn ObjString *Table.find_string(&self, char[] chars, int len, uint hash)
 {
-    if (self.size == 0) return null;
+    if (self.count == 0) return null;
 
     uint index = hash & (self.capacity - 1);
     for (;;)
@@ -80,11 +80,11 @@ fn ObjString *Table.findString(&self, char[] chars, int len, uint hash)
         Entry *entry = &self.entries[index];
         if (entry.key == null)
         {
-            if (isNil(entry.value)) return null;
+            if (is_nil(entry.value)) return null;
         }
         else if (entry.key.len == len &&
                  entry.key.hash == hash &&
-                 mem::equals(entry.key.chars.ptr, chars.ptr, len))
+                 mem::equals(entry.key.value.ptr, chars.ptr, len))
         {
             return entry.key;
         }
@@ -93,16 +93,16 @@ fn ObjString *Table.findString(&self, char[] chars, int len, uint hash)
     }
 }
 
-fn void Table.adjustCapacity(&self, int capacity)
+fn void Table.resize(&self, int capacity)
 {
-    Entry *entries = mem::lalloc(Entry, capacity);
+    Entry *entries = memory::lalloc(Entry, capacity);
     for (int i = 0; i < capacity; i++)
     {
         entries[i].key = null;
-        entries[i].value = nilVal();
+        entries[i].value = nil_val();
     }
 
-    self.size = 0;
+    self.count = 0;
     for (int i = 0; i < self.capacity; i++)
     {
         Entry *entry = &self.entries[i];
@@ -111,34 +111,34 @@ fn void Table.adjustCapacity(&self, int capacity)
         Entry *dest = self.find(entry.key);
         dest.key = entry.key;
         dest.value = entry.value;
-        self.size++;
+        self.count++;
     }
 
-    mem::lfree(Entry, self.entries, self.capacity);
+    memory::lfree(Entry, self.entries, self.capacity);
     self.entries = entries;
     self.capacity = capacity;
 }
 
 fn bool Table.set(&self, ObjString *key, Value value)
 {
-    if (self.size + 1.0f > self.capacity * MAX_LOAD_FACTOR)
+    if (self.count + 1.0f > self.capacity * MAX_LOAD_FACTOR)
     {
-        int capacity = nextPowOf2(self.capacity);
-        self.adjustCapacity(capacity);
+        int capacity = memory::grow2x(self.capacity);
+        self.resize(capacity);
     }
 
     Entry *entry = self.find(key);
-    bool isNewKey = entry.key == null;
-    if (isNewKey && isNil(entry.value)) self.size++;
+    bool is_new_key = entry.key == null;
+    if (is_new_key && is_nil(entry.value)) self.count++;
 
     entry.key = key;
     entry.value = value;
-    return isNewKey;
+    return is_new_key;
 }
 
 fn bool Table.get(&self, ObjString *key, Value *value)
 {
-    if (self.size == 0) return false;
+    if (self.count == 0) return false;
 
     Entry *entry = self.find(key);
     if (entry.key == null) return false;
@@ -149,13 +149,13 @@ fn bool Table.get(&self, ObjString *key, Value *value)
 
 fn bool Table.delete(&self, ObjString *key)
 {
-    if (self.size == 0) return false;
+    if (self.count == 0) return false;
 
     Entry *entry = self.find(key);
     if (entry.key == null) return false;
 
     entry.key = null;
-    entry.value = boolVal(true);
+    entry.value = bool_val(true);
     return true;
 }
 

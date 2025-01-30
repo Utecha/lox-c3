@@ -6,6 +6,6 @@ build/*
 # Scratch files
 scratch.*
 
-# Random stuff
+# Other stuff
+resources/backup
 Issues.md
-undefined

@@ -1,7 +1,7 @@
 module lox::token;
 
 //------------------------------------------------------------------------------
-// Lox \ Token
+// Lox | Token
 //------------------------------------------------------------------------------
 
 enum TokenType : int
@@ -21,6 +21,7 @@ enum TokenType : int
     PLUS,
     SLASH,
     STAR,
+    MODULUS,
 
     BANG,
     BANGEQ,
@@ -43,7 +44,6 @@ enum TokenType : int
     FUN,
     IF,
     NIL,
-    NOT,
     OR,
     PRINT,
     RETURN,

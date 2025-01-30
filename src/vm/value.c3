@@ -1,9 +1,9 @@
 module lox::vm::value;
-import lox::mem;
+import lox::gc::memory;
 import std::io @norecurse;
 
 //------------------------------------------------------------------------------
-// Lox \ VM \ Value -- Value
+// Lox | VM | Value @Value
 //------------------------------------------------------------------------------
 
 enum ValueType : int
@@ -25,28 +25,28 @@ struct Value
     }
 }
 
-macro Value boolVal(value)      @builtin => Value { BOOL, { .boolean = value } };
-macro Value nilVal()            @builtin => Value { NIL, { .number = 0 } };
-macro Value numberVal(value)    @builtin => Value { NUMBER, { .number = value } };
-macro Value objVal(object)      @builtin => Value { OBJ, { .obj = (Obj *)object } };
+macro Value bool_val(value)      @builtin => Value { BOOL, { .boolean = value } };
+macro Value nil_val()            @builtin => Value { NIL, { .number = 0 } };
+macro Value number_val(value)    @builtin => Value { NUMBER, { .number = value } };
+macro Value obj_val(object)      @builtin => Value { OBJ, { .obj = (Obj *)object } };
 
-macro bool asBool(value)        @builtin => value.as.boolean;
-macro double asNumber(value)    @builtin => value.as.number;
-macro Obj *asObj(value)         @builtin => value.as.obj;
+macro bool as_bool(value)        @builtin => value.as.boolean;
+macro double as_number(value)    @builtin => value.as.number;
+macro Obj *as_obj(value)         @builtin => value.as.obj;
 
-macro bool isBool(value)        @builtin => value.type == ValueType.BOOL;
-macro bool isNil(value)         @builtin => value.type == ValueType.NIL;
-macro bool isNumber(value)      @builtin => value.type == ValueType.NUMBER;
-macro bool isObj(value)         @builtin => value.type == ValueType.OBJ;
+macro bool is_bool(value)        @builtin => value.type == ValueType.BOOL;
+macro bool is_nil(value)         @builtin => value.type == ValueType.NIL;
+macro bool is_number(value)      @builtin => value.type == ValueType.NUMBER;
+macro bool is_obj(value)         @builtin => value.type == ValueType.OBJ;
 
 fn void print(Value value, OutStream stream = io::stdout())
 {
     switch (value.type)
     {
-        case BOOL:      (void) io::fprintf(stream, asBool(value) ? "true" : "false");
+        case BOOL:      (void) io::fprintf(stream, as_bool(value) ? "true" : "false");
         case NIL:       (void) io::fprintf(stream, "nil");
-        case NUMBER:    (void) io::fprintf(stream, "%g", asNumber(value));
-        case OBJ:       printObj(value, stream);
+        case NUMBER:    (void) io::fprintf(stream, "%g", as_number(value));
+        case OBJ:       print_obj(value, stream);
         default:        return;
     }
 }
@@ -56,16 +56,16 @@ fn bool equals(Value a, Value b)
     if (a.type != b.type) return false;
     switch (a.type)
     {
-        case BOOL:      return asBool(a) == asBool(b);
+        case BOOL:      return as_bool(a) == as_bool(b);
         case NIL:       return true;
-        case NUMBER:    return asNumber(a) == asNumber(b);
-        case OBJ:       return asObj(a) == asObj(b);
+        case NUMBER:    return as_number(a) == as_number(b);
+        case OBJ:       return as_obj(a) == as_obj(b);
         default:        return false;
     }
 }
 
 //------------------------------------------------------------------------------
-// Lox \ VM \ Value -- Object
+// Lox | VM | Value @Object
 //------------------------------------------------------------------------------
 
 enum ObjType : int
@@ -84,46 +84,46 @@ struct ObjString
     Obj obj;
     int len;
     uint hash;
-    String chars;
+    String value;
 }
 
-macro ObjType objType(value) @builtin => asObj(value).type;
+macro ObjType obj_type(value) @builtin => as_obj(value).type;
 
-macro asString(value)   @builtin => (ObjString *)asObj(value);
-macro asCString(value)  @builtin => ((ObjString *)asObj(value)).chars;
-
-fn bool isObjType(Value value, ObjType type) @local @inline
+fn bool is_obj_type(Value value, ObjType type) @local @inline
 {
-    return isObj(value) && asObj(value).type == type;
+    return is_obj(value) && as_obj(value).type == type;
 }
 
-macro bool isString(value) @builtin => isObjType(value, STRING);
+macro ObjString *as_string(value)   @builtin => (ObjString *)as_obj(value);
+macro String as_cstring(value)      @builtin => ((ObjString *)as_obj(value)).value;
 
-fn Obj *allocateObject(LoxVM *vm, usz size, ObjType type) @local
+macro bool is_string(value)         @builtin => is_obj_type(value, STRING);
+
+fn Obj *allocate_object(Vm *vm, usz size, ObjType type) @local
 {
-    Obj *object = mem::lalloc(Obj, size);
+    Obj *object = memory::lalloc(Obj, size);
     object.type = type;
     object.next = vm.objects;
     vm.objects = object;
     return object;
 }
 
-macro allocateObj($Type, LoxVM *vm, ObjType objType) @local
+macro allocate_obj($Type, Vm *vm, ObjType obj_type) @local
 {
-    return ($Type *)allocateObject(vm, $Type.sizeof, objType);
+    return ($Type *)allocate_object(vm, $Type.sizeof, obj_type);
 }
 
-fn ObjString *allocateString(LoxVM *vm, char[] chars, int len, uint hash) @local
+fn ObjString *allocate_string(Vm *vm, char[] chars, int len, uint hash) @local
 {
-    ObjString *string = allocateObj(ObjString, vm, STRING);
+    ObjString *string = allocate_obj(ObjString, vm, STRING);
     string.len = len;
     string.hash = hash;
-    string.chars = (String)chars;
-    vm.strings.set(string, nilVal());
+    string.value = (String)chars;
+    vm.strings.set(string, nil_val());
     return string;
 }
 
-fn uint hashString(char[] key, int len)
+fn uint hash_string(char[] key, int len)
 {
     uint hash = 2166136261u;
 
@@ -136,36 +136,36 @@ fn uint hashString(char[] key, int len)
     return hash;
 }
 
-fn ObjString *copyString(LoxVM *vm, char[] chars, int len)
+fn ObjString *copy_string(Vm *vm, char[] chars, int len)
 {
-    uint hash = hashString(chars, len);
-    ObjString *interned = vm.strings.findString(chars, len, hash);
+    uint hash = hash_string(chars, len);
+    ObjString *interned = vm.strings.find_string(chars, len, hash);
     if (interned != null) return interned;
 
-    char *heapChars = mem::lalloc(char, len + 1);
-    mem::copy(heapChars, chars, len);
-    heapChars[len] = '\0';
-    return allocateString(vm, heapChars[:len], len, hash);
+    char *heap_chars = memory::lalloc(char, len + 1);
+    mem::copy(heap_chars, chars.ptr, len);
+    heap_chars[len] = '\0';
+    return allocate_string(vm, heap_chars[:len], len, hash);
 }
 
-fn ObjString *takeString(LoxVM *vm, char[] chars, int len)
+fn ObjString *take_string(Vm *vm, char[] chars, int len)
 {
-    uint hash = hashString(chars, len);
-    ObjString *interned = vm.strings.findString(chars, len, hash);
+    uint hash = hash_string(chars, len);
+    ObjString *interned = vm.strings.find_string(chars, len, hash);
     if (interned != null)
     {
-        mem::lfree(char, chars, len + 1);
+        memory::lfree(char, chars, len + 1);
         return interned;
     }
 
-    return allocateString(vm, chars, len, hash);
+    return allocate_string(vm, chars, len, hash);
 }
 
-fn void printObj(Value value, OutStream stream = io::stdout())
+fn void print_obj(Value value, OutStream stream = io::stdout())
 {
-    switch (objType(value))
+    switch (obj_type(value))
     {
         case STRING:
-            (void) io::fprintf(stream, "%s", asCString(value));
+            (void) io::fprintf(stream, "%s", as_cstring(value));
     }
 }

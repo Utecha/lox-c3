@@ -1,9 +1,9 @@
 module lox::vm::compiler;
-import lox::debug, lox::lexer, lox::token, lox::utils, lox::vm;
-import std::io @norecurse;
+import lox::debug, lox::lexer, lox::token;
+import lox::cli::utils, lox::vm;
 
 //------------------------------------------------------------------------------
-// Lox \ VM \ Compiler -- Parser
+// Lox | VM | Compiler @Parser
 //------------------------------------------------------------------------------
 
 struct Parser
@@ -11,9 +11,84 @@ struct Parser
     Lexer lexer;
     Token current;
     Token previous;
-    bool hadError;
-    bool panicMode;
+    bool error;
+    bool panicking;
 }
+
+fn void Parser.error_at(&self, Token *token, String message)
+{
+    if (self.panicking) return;
+    self.panicking = true;
+
+    utils::log(
+        ERROR,
+        "{ %sfile%s %s%s%s : %sline%s %d }",
+        utils::BLUE, utils::RESET,
+        utils::GREEN, self.lexer.file, utils::RESET,
+        utils::BLUE, utils::RESET, token.line
+    );
+
+    switch (token.type)
+    {
+        case ERROR:     break;
+        case EOF:       utils::log(NONE, " at EOF");
+        case STRING:    utils::log(NONE, " at %s", token.lexeme);
+        default:        utils::log(NONE, " at '%s'", token.lexeme);
+    }
+
+    utils::logn(NONE, ": %s", message);
+    self.error = true;
+}
+
+macro Parser.@eprevious(&self, String message)
+{
+    self.error_at(&self.previous, message);
+}
+
+macro Parser.@ecurrent(&self, String message)
+{
+    self.error_at(&self.current, message);
+}
+
+fn void Parser.advance(&self)
+{
+    self.previous = self.current;
+
+    for (;;)
+    {
+        self.current = self.lexer.next_token();
+        if (self.current.type != ERROR) break;
+
+        self.@ecurrent(self.current.lexeme);
+    }
+}
+
+fn bool Parser.check(&self, TokenType type)
+{
+    return self.current.type == type;
+}
+
+fn bool Parser.match(&self, TokenType type)
+{
+    if (!self.check(type)) return false;
+    self.advance();
+    return true;
+}
+
+fn void Parser.consume(&self, TokenType type, String message)
+{
+    if (self.current.type == type)
+    {
+        self.advance();
+        return;
+    }
+
+    self.@ecurrent(message);
+}
+
+//------------------------------------------------------------------------------
+// Lox | VM | Compiler @ParseRule
+//------------------------------------------------------------------------------
 
 enum Precedence : int
 {
@@ -30,7 +105,7 @@ enum Precedence : int
     PRIMARY
 }
 
-def ParseFn = fn void (Compiler *compiler, bool canAssign);
+def ParseFn = fn void (Compiler *compiler, bool can_assign);
 
 struct ParseRule
 {
@@ -53,6 +128,7 @@ ParseRule[*] rules = {
     [TokenType.PLUS.ordinal]        = { null,               &Compiler.binary,   TERM },
     [TokenType.SLASH.ordinal]       = { null,               &Compiler.binary,   FACTOR },
     [TokenType.STAR.ordinal]        = { null,               &Compiler.binary,   FACTOR },
+    [TokenType.MODULUS.ordinal]     = { null,               &Compiler.binary,   FACTOR },
     [TokenType.BANG.ordinal]        = { &Compiler.unary,    null,               NONE },
     [TokenType.BANGEQ.ordinal]      = { null,               &Compiler.binary,   EQUALITY },
     [TokenType.EQEQ.ordinal]        = { null,               &Compiler.binary,   EQUALITY },
@@ -82,86 +158,54 @@ ParseRule[*] rules = {
     [TokenType.WHILE.ordinal]       = { null,               null,               NONE },
 };
 
-fn ParseRule *getRule(TokenType type)
+fn ParseRule *get_rule(TokenType type)
 {
     return &rules[type.ordinal];
 }
 
-fn void Parser.errorAt(&self, Token *token, String message)
-{
-    if (self.panicMode) return;
-    self.panicMode = true;
-
-    utils::log(
-        ERROR,
-        "{ %sfile%s %s%s%s : %sline%s %d }",
-        utils::SBLUE, utils::SRESET,
-        utils::SGREEN, self.lexer.file, utils::SRESET,
-        utils::SBLUE, utils::SRESET, token.line,
-        noNewline: true
-    );
-    switch (token.type)
-    {
-        case ERROR: break;
-        case EOF:   utils::log(NONE, " at EOF", noNewline: true);
-        default:    utils::log(NONE, " at '%s'", token.lexeme, noNewline: true);
-    }
-
-    utils::log(NONE, ": %s", message);
-    self.hadError = true;
-}
-
-fn void Parser.errorPrev(&self, String message)
-{
-    self.errorAt(&self.previous, message);
-}
-
-fn void Parser.error(&self, String message)
-{
-    self.errorAt(&self.current, message);
-}
-
-fn void Parser.advance(&self)
-{
-    self.previous = self.current;
-
-    for (;;)
-    {
-        self.current = self.lexer.getNextToken();
-        if (self.current.type != ERROR) break;
-
-        self.error(self.current.lexeme);
-    }
-}
-
-fn bool Parser.check(&self, TokenType type)
-{
-    return self.current.type == type;
-}
-
-fn void Parser.consume(&self, TokenType type, String message)
-{
-    if (self.current.type == type)
-    {
-        self.advance();
-        return;
-    }
-
-    self.error(message);
-}
-
-fn bool Parser.match(&self, TokenType type)
-{
-    if (!self.check(type)) return false;
-    self.advance();
-    return true;
-}
-
 //------------------------------------------------------------------------------
-// Lox \ VM \ Compiler
+// Lox | VM | Compiler @public
 //------------------------------------------------------------------------------
 
 const uint U8_COUNT = char.max + 1;
+
+struct Compiler
+{
+    Vm *vm;
+    Parser parser;
+    Chunk *chunk;
+    Local[U8_COUNT] locals;
+    int local_count;
+    int scope_depth;
+}
+
+fn bool compile(Vm *vm, String file, Chunk *chunk, char *source)
+{
+    Lexer lexer;
+    lexer.init(file, source);
+
+    Parser parser;
+    parser.lexer = lexer;
+    parser.error = false;
+    parser.panicking = false;
+
+    Compiler compiler;
+    compiler.vm = vm;
+    compiler.parser = parser;
+    compiler.chunk = chunk;
+    compiler.init();
+
+    compiler.parser.advance();
+    while (!compiler.parser.match(EOF))
+        { compiler.declaration(); }
+
+    compiler.end();
+    return !compiler.parser.error;
+}
+
+//------------------------------------------------------------------------------
+// Lox | VM | Compiler @public
+//------------------------------------------------------------------------------
 
 struct Local
 {
@@ -169,149 +213,139 @@ struct Local
     int depth;
 }
 
-struct Compiler
-{
-    LoxVM *vm;
-    Chunk *chunk;
-    Parser parser;
-    Compiler *current;
-    Local[U8_COUNT] locals;
-    int localCount;
-    int scopeDepth;
-}
-
 fn void Compiler.init(&self)
 {
-    self.current = self;
-    self.localCount = 0;
-    self.scopeDepth = 0;
+    self.local_count = 0;
+    self.scope_depth = 0;
 }
 
-fn Chunk *Compiler.currentChunk(&self)
+macro Chunk *Compiler.@current(&self)
 {
     return self.chunk;
 }
 
-fn void Compiler.emitByte(&self, char byte)
+fn void Compiler.emit_byte(&self, char byte)
 {
-    self.currentChunk().write(byte, self.parser.previous.line);
+    self.@current().write(byte, self.parser.previous.line);
 }
 
-fn void Compiler.emitBytes(&self, char byte1, char byte2)
+fn void Compiler.emit_bytes(&self, char byte1, char byte2)
 {
-    self.emitByte(byte1);
-    self.emitByte(byte2);
+    self.emit_byte(byte1);
+    self.emit_byte(byte2);
 }
 
-fn int Compiler.emitJump(&self, char instruction)
+fn void Compiler.patch_jump(&self, int offset)
 {
-    self.emitByte(instruction);
-    self.emitByte(0xff);
-    self.emitByte(0xff);
-    return self.currentChunk().code.size - 2;
-}
-
-fn void Compiler.patchJump(&self, int offset)
-{
-    int jump = self.currentChunk().code.size - offset - 2;
+    int jump = self.@current().code.len() - offset - 2;
     if (jump > ushort.max)
     {
-        self.parser.errorPrev("Too much code to jump over");
+        self.parser.@eprevious("Too much code to jump over");
     }
 
-    self.currentChunk().code[offset] = ibyte((jump >> 8) & 0xff);
-    self.currentChunk().code[offset + 1] = ibyte(jump & 0xff);
+    self.@current().code[offset] = ibyte((jump >> 8) & 0xff);
+    self.@current().code[offset + 1] = ibyte(jump & 0xff);
 }
 
-fn void Compiler.emitLoop(&self, int loopStart)
+fn int Compiler.emit_jump(&self, char instruction)
 {
-    self.emitByte(obyte(LOOP));
-
-    int offset = self.currentChunk().code.size - loopStart + 2;
-    if (offset > ushort.max) self.parser.errorPrev("Loop body is too large to jump over");
-
-    self.emitByte(ibyte((offset >> 8) & 0xff));
-    self.emitByte(ibyte(offset & 0xff));
+    self.emit_byte(instruction);
+    self.emit_byte(0xff);
+    self.emit_byte(0xff);
+    return self.@current().code.len() - 2;
 }
 
-fn char Compiler.makeConstant(&self, Value value)
+fn void Compiler.emit_loop(&self, int loop_start)
 {
-    int constant = self.currentChunk().addConstant(value);
+    self.emit_byte(obyte(LOOP));
+
+    int offset = self.@current().code.len() - loop_start + 2;
+    if (offset > ushort.max)
+    {
+        self.parser.@eprevious("Loop body is too large");
+    }
+
+    self.emit_byte(ibyte((offset >> 8) & 0xff));
+    self.emit_byte(ibyte(offset & 0xff));
+}
+
+fn char Compiler.make_constant(&self, Value value)
+{
+    int constant = self.@current().add_constant(value);
     if (constant > char.max)
     {
-        self.parser.error("Too many constants in one chunk");
+        self.parser.@ecurrent("Too many constants in one chunk");
         return 0;
     }
 
     return ibyte(constant);
 }
 
-fn void Compiler.emitConstant(&self, Value value)
+fn void Compiler.emit_constant(&self, Value value)
 {
-    self.emitBytes(obyte(CONSTANT), self.makeConstant(value));
+    self.emit_bytes(obyte(CONSTANT), self.make_constant(value));
 }
 
-fn void Compiler.emitReturn(&self)
+fn void Compiler.emit_return(&self)
 {
-    self.emitByte(obyte(RETURN));
+    self.emit_byte(obyte(RETURN));
 }
 
 fn void Compiler.end(&self)
 {
-    self.emitReturn();
+    self.emit_return();
 
-    $if $feature(DEBUG) &&& (debug::DUMP_CHUNK || debug::ENABLE_ALL):
-        if (!self.parser.hadError)
-            { self.currentChunk().disassemble("Code"); }
+    $if $feature(DEBUG) &&& (debug::DUMP_CHUNK ||| debug::ENABLE_ALL):
+        if (!self.parser.error)
+            { self.@current().disassemble("Code"); }
     $endif
 }
 
-fn void Compiler.beginScope(&self)
+fn void Compiler.begin_scope(&self)
 {
-    self.current.scopeDepth++;
+    self.scope_depth++;
 }
 
-fn void Compiler.endScope(&self)
+fn void Compiler.end_scope(&self)
 {
-    self.current.scopeDepth--;
-
-    while (self.current.localCount > 0 && self.current.locals[self.current.localCount - 1].depth > self.current.scopeDepth)
+    self.scope_depth--;
+    while (self.local_count > 0 && self.locals[self.local_count - 1].depth > self.scope_depth)
     {
-        self.emitByte(obyte(POP));
-        self.current.localCount--;
+        self.emit_byte(obyte(POP));
+        self.local_count--;
     }
 }
 
-fn void Compiler.grouping(&self, bool canAssign)
+fn void Compiler.grouping(&self, bool can_assign)
 {
     self.expression();
     self.parser.consume(RPAREN, "Expected ')' after expression");
 }
 
-fn void Compiler.number(&self, bool canAssign)
+fn void Compiler.number(&self, bool can_assign)
 {
     double! value = self.parser.previous.lexeme.to_double();
     if (catch value) return;
 
-    self.emitConstant(numberVal(value));
+    self.emit_constant(number_val(value));
 }
 
-fn void Compiler.literal(&self, bool canAssign)
+fn void Compiler.literal(&self, bool can_assign)
 {
     switch (self.parser.previous.type)
     {
-        case NIL:   self.emitByte(obyte(NIL));
-        case TRUE:  self.emitByte(obyte(TRUE));
-        case FALSE: self.emitByte(obyte(FALSE));
-        default:    unreachable();
+        case NIL:   self.emit_byte(obyte(NIL));
+        case TRUE:  self.emit_byte(obyte(TRUE));
+        case FALSE: self.emit_byte(obyte(FALSE));
+        default:    return;
     }
 }
 
-fn void Compiler.string(&self, bool canAssign)
+fn void Compiler.string(&self, bool can_assign)
 {
-    self.emitConstant(
-        objVal(
-            value::copyString(
+    self.emit_constant(
+        obj_val(
+            value::copy_string(
                 self.vm,
                 self.parser.previous.lexeme[1..],
                 self.parser.previous.lexeme.len - 2
@@ -320,10 +354,11 @@ fn void Compiler.string(&self, bool canAssign)
     );
 }
 
-fn void Compiler.namedVariable(&self, Token name, bool canAssign)
+fn void Compiler.named_variable(&self, Token name, bool can_assign)
 {
     char getOp, setOp;
-    int arg = self.current.resolveLocal(&name);
+
+    int arg = self.resolve_local(&name);
     if (arg != -1)
     {
         getOp = obyte(GET_LOCAL);
@@ -331,123 +366,117 @@ fn void Compiler.namedVariable(&self, Token name, bool canAssign)
     }
     else
     {
-        arg = self.identifierConstant(&name);
+        arg = self.identifier_constant(&name);
         getOp = obyte(GET_GLOBAL);
         setOp = obyte(SET_GLOBAL);
     }
 
-    if (canAssign && self.parser.match(EQUAL))
+    if (can_assign && self.parser.match(EQUAL))
     {
         self.expression();
-        self.emitBytes(setOp, ibyte(arg));
+        self.emit_bytes(setOp, ibyte(arg));
     }
     else
     {
-        self.emitBytes(getOp, ibyte(arg));
+        self.emit_bytes(getOp, ibyte(arg));
     }
 }
 
-fn void Compiler.variable(&self, bool canAssign)
+fn void Compiler.binary(&self, bool can_assign)
 {
-    self.namedVariable(self.parser.previous, canAssign);
-}
+    TokenType op_type = self.parser.previous.type;
+    ParseRule *rule = get_rule(op_type);
+    self.parse_precedence(rule.precedence + 1);
 
-fn void Compiler.binary(&self, bool canAssign)
-{
-    TokenType opType = self.parser.previous.type;
-    ParseRule *rule = getRule(opType);
-    self.parsePrecedence(rule.precedence + 1);
-
-    switch (opType)
+    switch (op_type)
     {
-        case BANGEQ:    self.emitBytes(obyte(EQUAL), obyte(NOT));
-        case EQEQ:      self.emitByte(obyte(EQUAL));
-        case GT:        self.emitByte(obyte(GREATER));
-        case GTEQ:      self.emitBytes(obyte(LESS), obyte(NOT));
-        case LT:        self.emitByte(obyte(LESS));
-        case LTEQ:      self.emitBytes(obyte(GREATER), obyte(NOT));
-        case MINUS:     self.emitByte(obyte(SUBTRACT));
-        case PLUS:      self.emitByte(obyte(ADD));
-        case SLASH:     self.emitByte(obyte(DIVIDE));
-        case STAR:      self.emitByte(obyte(MULTIPLY));
-        default:        unreachable();
+        case BANGEQ:    self.emit_bytes(obyte(EQUAL), obyte(NOT));
+        case EQEQ:      self.emit_byte(obyte(EQUAL));
+        case GT:        self.emit_byte(obyte(GREATER));
+        case GTEQ:      self.emit_bytes(obyte(LESS), obyte(NOT));
+        case LT:        self.emit_byte(obyte(LESS));
+        case LTEQ:      self.emit_bytes(obyte(GREATER), obyte(NOT));
+        case MINUS:     self.emit_byte(obyte(SUBTRACT));
+        case PLUS:      self.emit_byte(obyte(ADD));
+        case SLASH:     self.emit_byte(obyte(DIVIDE));
+        case STAR:      self.emit_byte(obyte(MULTIPLY));
+        case MODULUS:   self.emit_byte(obyte(MODULO));
+        default:        return;
     }
 }
 
-fn void Compiler.unary(&self, bool canAssign)
+fn void Compiler.unary(&self, bool can_assign)
 {
-    TokenType opType = self.parser.previous.type;
-    self.parsePrecedence(UNARY);
+    TokenType op_type = self.parser.previous.type;
+    self.parse_precedence(UNARY);
 
-    switch (opType)
+    switch (op_type)
     {
-        case BANG:  self.emitByte(obyte(NOT));
-        case MINUS: self.emitByte(obyte(NEGATE));
-        default:    unreachable();
+        case BANG:  self.emit_byte(obyte(NOT));
+        case MINUS: self.emit_byte(obyte(NEGATE));
+        default:    return;
     }
 }
 
-fn void Compiler.parsePrecedence(&self, Precedence precedence)
+fn void Compiler.variable(&self, bool can_assign)
 {
-    self.parser.advance();
-    ParseFn prefixRule = getRule(self.parser.previous.type).prefix;
-    if (prefixRule == null)
+    self.named_variable(self.parser.previous, can_assign);
+}
+
+fn void Compiler.and(&self, bool can_assign)
+{
+    int end_jump = self.emit_jump(obyte(JUMP_IF_FALSE));
+    self.emit_byte(obyte(POP));
+    self.parse_precedence(AND);
+    self.patch_jump(end_jump);
+}
+
+fn void Compiler.or(&self, bool can_assign)
+{
+    int end_jump = self.emit_jump(obyte(JUMP_IF_TRUE));
+    self.emit_byte(obyte(POP));
+    self.parse_precedence(OR);
+    self.patch_jump(end_jump);
+}
+
+fn char Compiler.identifier_constant(&self, Token *name)
+{
+    return self.make_constant(
+        obj_val(value::copy_string(self.vm, name.lexeme, name.lexeme.len))
+    );
+}
+
+fn bool identifiers_equal(Token *a, Token *b)
+{
+    if (a.lexeme.len != b.lexeme.len) return false;
+    return mem::equals(a.lexeme.ptr, b.lexeme.ptr, a.lexeme.len);
+}
+
+fn void Compiler.add_local(&self, Token name)
+{
+    if (self.local_count == U8_COUNT)
     {
-        self.parser.errorPrev("Expected expression");
+        self.parser.@eprevious("Too many local variables in scope");
         return;
     }
 
-    bool canAssign = precedence <= Precedence.ASSIGNMENT;
-    prefixRule(self, canAssign);
-
-    while (precedence <= getRule(self.parser.current.type).precedence)
-    {
-        self.parser.advance();
-        ParseFn infixRule = getRule(self.parser.previous.type).infix;
-        infixRule(self, canAssign);
-    }
-
-    if (canAssign && self.parser.match(EQUAL))
-    {
-        self.parser.errorPrev("Invalid assignment target");
-    }
-}
-
-fn char Compiler.identifierConstant(&self, Token *name)
-{
-    return self.makeConstant(objVal(value::copyString(self.vm, name.lexeme, name.lexeme.len)));
-}
-
-fn void Compiler.addLocal(&self, Token name)
-{
-    if (self.current.localCount == U8_COUNT)
-    {
-        self.parser.errorPrev("Too many local variables in function");
-        return;
-    }
-
-    Local *local = &self.current.locals[self.current.localCount++];
+    Local *local = &self.locals[self.local_count++];
     local.name = name;
     local.depth = -1;
 }
 
-fn bool identifiersEqual(Token *a, Token *b) @local
+fn int Compiler.resolve_local(&self, Token *name)
 {
-    if (a.lexeme.len != b.lexeme.len) return false;
-    return mem::equals(&a.lexeme[0], &b.lexeme[0], a.lexeme.len);
-}
-
-fn int Compiler.resolveLocal(&self, Token *name)
-{
-    for (int i = self.localCount - 1; i >= 0; i--)
+    for (int i = self.local_count - 1; i >= 0; i--)
     {
         Local *local = &self.locals[i];
-        if (identifiersEqual(name, &local.name))
+        if (identifiers_equal(name, &local.name))
         {
             if (local.depth == -1)
             {
-                self.parser.errorPrev("Cannot read a local variable within its own initializer");
+                self.parser.@eprevious("Cannot read a local variable within its own initializer");
             }
+
             return i;
         }
     }
@@ -455,194 +484,191 @@ fn int Compiler.resolveLocal(&self, Token *name)
     return -1;
 }
 
-fn void Compiler.declareVariable(&self)
+fn void Compiler.parse_precedence(&self, Precedence precedence)
 {
-    if (self.current.scopeDepth == 0) return;
-
-    Token *name = &self.parser.previous;
-    for (int i = self.current.localCount - 1; i >= 0; i--)
+    self.parser.advance();
+    ParseFn prefix_rule = get_rule(self.parser.previous.type).prefix;
+    if (prefix_rule == null)
     {
-        Local *local = &self.current.locals[i];
-        if (local.depth != -1 && local.depth < self.current.scopeDepth)
-            { break; }
-
-        if (identifiersEqual(name, &local.name))
-            { self.parser.errorPrev("Already a variable with this name in this scope"); }
-    }
-    self.addLocal(*name);
-}
-
-fn char Compiler.parseVariable(&self, String message)
-{
-    self.parser.consume(IDENTIFIER, message);
-
-    self.declareVariable();
-    if (self.current.scopeDepth > 0) return 0;
-
-    return self.identifierConstant(&self.parser.previous);
-}
-
-fn void Compiler.markInitialized(&self)
-{
-    self.current.locals[self.current.localCount - 1].depth = self.current.scopeDepth;
-}
-
-fn void Compiler.defineVariable(&self, char global)
-{
-    if (self.current.scopeDepth > 0)
-    {
-        self.markInitialized();
+        self.parser.@eprevious("Expected expression");
         return;
     }
 
-    self.emitBytes(obyte(DEFINE_GLOBAL), global);
-}
+    bool can_assign = precedence <= Precedence.ASSIGNMENT;
+    prefix_rule(self, can_assign);
 
-fn void Compiler.and(&self, bool canAssign)
-{
-    int endJump = self.emitJump(obyte(JUMP_IF_FALSE));
+    while (precedence <= get_rule(self.parser.current.type).precedence)
+    {
+        self.parser.advance();
+        ParseFn infix_rule = get_rule(self.parser.previous.type).infix;
+        infix_rule(self, can_assign);
+    }
 
-    self.emitByte(obyte(POP));
-    self.parsePrecedence(AND);
-
-    self.patchJump(endJump);
-}
-
-fn void Compiler.or(&self, bool canAssign)
-{
-    // int elseJump = self.emitJump(obyte(JUMP_IF_FALSE));
-    // int endJump = self.emitJump(obyte(JUMP));
-    //
-    // self.patchJump(elseJump);
-    // self.emitByte(obyte(POP));
-    //
-    // self.parsePrecedence(OR);
-    // self.patchJump(endJump);
-
-    int endJump = self.emitJump(obyte(JUMP_IF_TRUE));
-    self.emitByte(obyte(POP));
-    self.parsePrecedence(OR);
-    self.patchJump(endJump);
+    if (can_assign && self.parser.match(EQUAL))
+    {
+        self.parser.@eprevious("Invalid assignment target");
+    }
 }
 
 fn void Compiler.expression(&self)
 {
-    self.parsePrecedence(ASSIGNMENT);
+    self.parse_precedence(ASSIGNMENT);
+}
+
+fn void Compiler.declare_variable(&self)
+{
+    if (self.scope_depth == 0) return;
+
+    Token *name = &self.parser.previous;
+    for (int i = self.local_count - 1; i >= 0; i--)
+    {
+        Local *local = &self.locals[i];
+        if (local.depth != -1 && local.depth < self.scope_depth)
+            { break; }
+
+        if (identifiers_equal(name, &local.name))
+            { self.parser.@eprevious("Already a variable with this name in this scope"); }
+    }
+
+    self.add_local(*name);
+}
+
+fn char Compiler.parse_variable(&self, String message)
+{
+    self.parser.consume(IDENTIFIER, message);
+    self.declare_variable();
+    if (self.scope_depth > 0) return 0;
+    return self.identifier_constant(&self.parser.previous);
+}
+
+fn void Compiler.mark_initialized(&self)
+{
+    self.locals[self.local_count - 1].depth = self.scope_depth;
+}
+
+fn void Compiler.define_variable(&self, char global)
+{
+    if (self.scope_depth > 0)
+    {
+        self.mark_initialized();
+        return;
+    }
+
+    self.emit_bytes(obyte(DEFINE_GLOBAL), global);
 }
 
 fn void Compiler.block(&self)
 {
     while (!self.parser.check(RBRACE) && !self.parser.check(EOF))
-    {
-        self.declaration();
-    }
+        { self.declaration(); }
 
     self.parser.consume(RBRACE, "Expected '}' after block");
 }
 
-fn void Compiler.expressionStatement(&self)
+fn void Compiler.expr_statement(&self)
 {
     if (!self.parser.check(SEMICOLON))
     {
         self.expression();
         self.parser.consume(SEMICOLON, "Expected ';' after expression");
-        self.emitByte(obyte(POP));
+        self.emit_byte(obyte(POP));
         return;
     }
-    
+
     self.parser.advance();
 }
 
-fn void Compiler.forStatement(&self)
+fn void Compiler.for_statement(&self)
 {
-    self.beginScope();
+    self.begin_scope();
+
     self.parser.consume(LPAREN, "Expected '(' after 'for'");
     if (self.parser.match(SEMICOLON))
         { /* No initializer */ }
     else if (self.parser.match(VAR))
-        { self.varDeclaration(); }
+        { self.var_declaration(); }
     else
-        { self.expressionStatement(); }
+        { self.expr_statement(); }
 
-    int loopStart = self.currentChunk().code.size;
-    int exitJump = -1;
+    int loop_start = self.@current().code.len();
+    int exit_jump = -1;
 
     if (!self.parser.match(SEMICOLON))
     {
         self.expression();
-        self.parser.consume(SEMICOLON, "Expected ';' after for condition");
+        self.parser.consume(SEMICOLON, "Expected ';' after 'for' condition");
 
         // Jump out of the loop if the condition is false
-        exitJump = self.emitJump(obyte(JUMP_IF_FALSE));
-        self.emitByte(obyte(POP)); // Condition
+        exit_jump = self.emit_jump(obyte(JUMP_IF_FALSE));
+        self.emit_byte(obyte(POP));
     }
 
     if (!self.parser.match(RPAREN))
     {
-        int bodyJump = self.emitJump(obyte(JUMP));
-        int incrementStart = self.currentChunk().code.size;
+        int body_jump = self.emit_jump(obyte(JUMP));
+        int increment_start = self.@current().code.len();
 
         self.expression();
-        self.emitByte(obyte(POP));
-        self.parser.consume(RPAREN, "Expected ')' after for loop increment value");
+        self.emit_byte(obyte(POP));
+        self.parser.consume(RPAREN, "Expected ')' after 'for' loop increment value");
 
-        self.emitLoop(loopStart);
-        loopStart = incrementStart;
-        self.patchJump(bodyJump);
+        self.emit_loop(loop_start);
+        loop_start = increment_start;
+        self.patch_jump(body_jump);
     }
 
     self.statement();
-    self.emitLoop(loopStart);
+    self.emit_loop(loop_start);
 
-    if (exitJump != -1)
+    if (exit_jump != -1)
     {
-        self.patchJump(exitJump);
-        self.emitByte(obyte(POP)); // Condition
+        self.patch_jump(exit_jump);
+        self.emit_byte(obyte(POP)); // Condition
     }
 
-    self.endScope();
+    self.end_scope();
 }
 
-fn void Compiler.ifStatement(&self)
+fn void Compiler.if_statement(&self)
 {
     self.parser.consume(LPAREN, "Expected '(' after 'if'");
     self.expression();
-    self.parser.consume(RPAREN, "Expected ')' after if condition");
+    self.parser.consume(RPAREN, "Expected ')' after 'if' condition");
 
-    int thenJump = self.emitJump(obyte(JUMP_IF_FALSE));
-    self.emitByte(obyte(POP));
+    int then_jump = self.emit_jump(obyte(JUMP_IF_FALSE));
+    self.emit_byte(obyte(POP));
     self.statement();
 
-    int elseJump = self.emitJump(obyte(JUMP));
-    self.patchJump(thenJump);
-    self.emitByte(obyte(POP));
+    int else_jump = self.emit_jump(obyte(JUMP));
+    self.patch_jump(then_jump);
+    self.emit_byte(obyte(POP));
 
     if (self.parser.match(ELSE)) self.statement();
-    self.patchJump(elseJump);
+    self.patch_jump(else_jump);
 }
 
-fn void Compiler.printStatement(&self)
+fn void Compiler.print_statement(&self)
 {
     self.expression();
     self.parser.consume(SEMICOLON, "Expected ';' after value");
-    self.emitByte(obyte(PRINT));
+    self.emit_byte(obyte(PRINT));
 }
 
-fn void Compiler.whileStatement(&self)
+fn void Compiler.while_statement(&self)
 {
-    int loopStart = self.currentChunk().code.size;
+    int loop_start = self.@current().code.len();
 
     self.parser.consume(LPAREN, "Expected '(' after 'while'");
     self.expression();
-    self.parser.consume(RPAREN, "Expected ')' after while condition");
+    self.parser.consume(RPAREN, "Expected ')' after 'while' condition");
 
-    int exitJump = self.emitJump(obyte(JUMP_IF_FALSE));
-    self.emitByte(obyte(POP));
+    int exit_jump = self.emit_jump(obyte(JUMP_IF_FALSE));
+    self.emit_byte(obyte(POP));
     self.statement();
-    self.emitLoop(loopStart);
+    self.emit_loop(loop_start);
 
-    self.patchJump(exitJump);
-    self.emitByte(obyte(POP));
+    self.patch_jump(exit_jump);
+    self.emit_byte(obyte(POP));
 }
 
 fn void Compiler.statement(&self)
@@ -650,35 +676,35 @@ fn void Compiler.statement(&self)
     switch
     {
         case self.parser.match(IF):
-            self.ifStatement();
+            self.if_statement();
         case self.parser.match(FOR):
-            self.forStatement();
+            self.for_statement();
         case self.parser.match(PRINT):
-            self.printStatement();
+            self.print_statement();
         case self.parser.match(WHILE):
-            self.whileStatement();
+            self.while_statement();
         case self.parser.match(LBRACE):
         {
-            self.beginScope();
+            self.begin_scope();
             self.block();
-            self.endScope();
+            self.end_scope();
         }
         default:
-            self.expressionStatement();
+            self.expr_statement();
     }
 }
 
-fn void Compiler.varDeclaration(&self)
+fn void Compiler.var_declaration(&self)
 {
-    char global = self.parseVariable("Expected variable name");
+    char global = self.parse_variable("Expected variable name");
 
     if (self.parser.match(EQUAL))
         { self.expression(); }
     else
-        { self.emitByte(obyte(NIL)); }
+        { self.emit_byte(obyte(NIL)); }
 
     self.parser.consume(SEMICOLON, "Expected ';' after variable declaration");
-    self.defineVariable(global);
+    self.define_variable(global);
 }
 
 fn void Compiler.declaration(&self)
@@ -686,17 +712,17 @@ fn void Compiler.declaration(&self)
     switch
     {
         case self.parser.match(VAR):
-            self.varDeclaration();
+            self.var_declaration();
         default:
             self.statement();
     }
 
-    if (self.parser.panicMode) self.synchronize();
+    if (self.parser.panicking) self.synchronize();
 }
 
 fn void Compiler.synchronize(&self)
 {
-    self.parser.panicMode = false;
+    self.parser.panicking = false;
 
     while (self.parser.current.type != EOF)
     {
@@ -718,31 +744,4 @@ fn void Compiler.synchronize(&self)
 
         self.parser.advance();
     }
-}
-
-fn bool compile(LoxVM *vm, String file, Chunk *chunk, char *source)
-{
-    Lexer lexer;
-    lexer.init(file, source);
-
-    Parser parser;
-    parser.lexer = lexer;
-    parser.hadError = false;
-    parser.panicMode = false;
-
-    Compiler compiler;
-    compiler.vm = vm;
-    compiler.chunk = chunk;
-    compiler.parser = parser;
-    compiler.init();
-
-    compiler.parser.advance();
-
-    while (!compiler.parser.match(EOF))
-    {
-        compiler.declaration();
-    }
-
-    compiler.end();
-    return !compiler.parser.hadError;
 }

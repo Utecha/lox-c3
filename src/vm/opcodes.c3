@@ -1,8 +1,7 @@
 module lox::vm::opcodes;
-import std::io @norecurse;
 
 //------------------------------------------------------------------------------
-// Lox \ VM \ OpCodes
+// Lox | VM | OpCodes
 //------------------------------------------------------------------------------
 
 /*
@@ -22,6 +21,7 @@ enum OpCode : char
     SUBTRACT,
     MULTIPLY,
     DIVIDE,
+    MODULO,
     NEGATE,
     NOT,
     EQUAL,

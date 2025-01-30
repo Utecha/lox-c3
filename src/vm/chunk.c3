@@ -1,9 +1,9 @@
 module lox::vm::chunk;
-import lox::list, lox::mem;
+import lox::buffer, lox::gc::memory;
 import lox::vm::value;
 
 //------------------------------------------------------------------------------
-// Lox \ VM \ Chunk
+// Lox | VM | Chunk
 //------------------------------------------------------------------------------
 
 struct Line
@@ -12,9 +12,9 @@ struct Line
     int offset;
 }
 
-def CodeBuffer = LoxList(<char>);
-def LineBuffer = LoxList(<Line>);
-def ValueBuffer = LoxList(<Value>);
+def CodeBuffer = TBuffer(<char>);
+def LineBuffer = TBuffer(<Line>);
+def ValueBuffer = TBuffer(<Value>);
 
 struct Chunk
 {
@@ -23,11 +23,11 @@ struct Chunk
     ValueBuffer constants;
 }
 
-fn void Chunk.zero(&self)
+fn void Chunk.init(&self)
 {
-    self.code.zero();
-    self.lines.zero();
-    self.constants.zero();
+    self.code.init();
+    self.lines.init();
+    self.constants.init();
 }
 
 fn Chunk *Chunk.new(&self)
@@ -43,7 +43,7 @@ fn void Chunk.free(&self)
     self.constants.free();
     self.lines.free();
     self.code.free();
-    self.zero();
+    self.init();
 }
 
 fn void Chunk.write(&self, char byte, int line)
@@ -54,13 +54,13 @@ fn void Chunk.write(&self, char byte, int line)
     self.code.append(byte);
 }
 
-fn int Chunk.addConstant(&self, Value value)
+fn int Chunk.add_constant(&self, Value value)
 {
     self.constants.append(value);
     return self.constants.len() - 1;
 }
 
-fn int Chunk.getLine(&self, int offset)
+fn int Chunk.get_line(&self, int offset)
 {
     int start = 0;
     int end = self.lines.len() - 1;

@@ -5,8 +5,8 @@ module lox::debug;
 //------------------------------------------------------------------------------
 
 const bool DUMP_CHUNK = false;
-const bool DUMP_TOKENS = true;
-const bool TRACE_INSTRUCTIONS = true;
+const bool DUMP_TOKENS = false;
+const bool TRACE_EXEC = true;
 const bool ENABLE_ALL = false;
 
 //------------------------------------------------------------------------------
@@ -14,11 +14,9 @@ const bool ENABLE_ALL = false;
 //------------------------------------------------------------------------------
 
 module lox::debug::lexer @if($feature(DEBUG));
-import lox::lexer;
-import lox::token;
-import lox::utils;
+import lox::lexer, lox::token, lox::cli::utils;
 
-fn void dumpTokens(String file, char *source)
+fn void dump_tokens(String file, char *source)
 {
     Lexer lexer;
     lexer.init(file, source);
@@ -26,21 +24,21 @@ fn void dumpTokens(String file, char *source)
     int line = -1;
     for (;;)
     {
-        Token token = lexer.getNextToken();
+        Token token = lexer.next_token();
         if (token.line != line)
         {
-            utils::log(DEBUG, "%4d ", token.line, noNewline: true);
+            utils::log(DEBUG, "%4d ", token.line);
             line = token.line;
         }
         else
         {
-            utils::log(DEBUG, "   | ", noNewline: true);
+            utils::log(DEBUG, "   | ");
         }
 
         if (token.type == STRING)
-            { utils::log(NONE, "%-10s -- %s", token.type, token.lexeme); }
+            { utils::logn(NONE, "%-10s -- %s", token.type, token.lexeme); }
         else
-            { utils::log(NONE, "%-10s -- '%s'", token.type, token.lexeme); }
+            { utils::logn(NONE, "%-10s -- '%s'", token.type, token.lexeme); }
 
         if (token.type == TokenType.EOF) break;
     }
@@ -50,136 +48,136 @@ fn void dumpTokens(String file, char *source)
 // Lox | Debug | Chunk
 //------------------------------------------------------------------------------
 module lox::debug::chunk @if($feature(DEBUG));
-import lox::vm::chunk;
-import lox::vm::opcodes;
-import lox::vm::value;
+import lox::cli::utils, lox::vm::chunk, lox::vm::opcodes, lox::vm::value;
 import std::io @norecurse;
 
-fn void printOpcodes()
+fn void print_opcodes()
 {
-    io::eprintfn("=== Lox Opcodes ===");
+    utils::logn(DEBUG, "=== Lox Opcodes ===");
 
     foreach (value : OpCode.values)
-        { io::eprintfn("%d: %s", value.ordinal, value); }
+        { utils::logn(DEBUG, "%d: %s", value.ordinal, value); }
 
     io::eprintf("\n");
 }
 
 fn void Chunk.disassemble(&self, String name)
 {
-    io::eprintfn("=== %s ===", name);
+    utils::log(DEBUG, "=== %s ===", name);
 
     for (int offset = 0; offset < self.code.len();)
-        { offset = self.disassembleInstruction(offset); }
+        { offset = self.disassemble_instruction(offset); }
 }
 
-fn int Chunk.disassembleInstruction(&self, int offset)
+fn int Chunk.disassemble_instruction(&self, int offset)
 {
-    io::eprintf("%04d ", offset);
+    utils::log(DEBUG, "%04d ", offset);
 
-    int line = self.getLine(offset);
-    if (offset > 0 && line == self.getLine(offset - 1))
-        { io::eprintf("   | "); }
+    int line = self.get_line(offset);
+    if (offset > 0 && line == self.get_line(offset - 1))
+        { utils::log(NONE, "   | "); }
     else
-        { io::eprintf("%4d ", line); }
+        { utils::log(NONE, "%4d ", line); }
 
     OpCode instruction = OpCode.from_ordinal(self.code[offset]);
     switch (instruction)
     {
         default:
-            io::eprintfn("Unknown OpCode: %s", instruction);
+            utils::log(NONE, "Unknown OpCode: %s", instruction);
             return offset + 1;
 
         /* Simple Instructions */
         case RETURN:
-            return simpleInstruction("RETURN", offset);
+            return simple_instruction("RETURN", offset);
         case NIL:
-            return simpleInstruction("NIL", offset);
+            return simple_instruction("NIL", offset);
         case TRUE:
-            return simpleInstruction("TRUE", offset);
+            return simple_instruction("TRUE", offset);
         case FALSE:
-            return simpleInstruction("FALSE", offset);
+            return simple_instruction("FALSE", offset);
         case POP:
-            return simpleInstruction("POP", offset);
+            return simple_instruction("POP", offset);
         case ADD:
-            return simpleInstruction("ADD", offset);
+            return simple_instruction("ADD", offset);
         case SUBTRACT:
-            return simpleInstruction("SUBTRACT", offset);
+            return simple_instruction("SUBTRACT", offset);
         case MULTIPLY:
-            return simpleInstruction("MULTIPLY", offset);
+            return simple_instruction("MULTIPLY", offset);
         case DIVIDE:
-            return simpleInstruction("DIVIDE", offset);
+            return simple_instruction("DIVIDE", offset);
+        case MODULO:
+            return simple_instruction("MODULO", offset);
         case NEGATE:
-            return simpleInstruction("NEGATE", offset);
+            return simple_instruction("NEGATE", offset);
         case NOT:
-            return simpleInstruction("NOT", offset);
+            return simple_instruction("NOT", offset);
         case EQUAL:
-            return simpleInstruction("EQUAL", offset);
+            return simple_instruction("EQUAL", offset);
         case GREATER:
-            return simpleInstruction("GREATER", offset);
+            return simple_instruction("GREATER", offset);
         case LESS:
-            return simpleInstruction("LESS", offset);
+            return simple_instruction("LESS", offset);
         case PRINT:
-            return simpleInstruction("PRINT", offset);
+            return simple_instruction("PRINT", offset);
 
         /* Constant Instructions */
         case CONSTANT:
-            return constantInstruction("CONSTANT", self, offset);
+            return constant_instruction("CONSTANT", self, offset);
         case DEFINE_GLOBAL:
-            return constantInstruction("DEFINE GLOBAL", self, offset);
+            return constant_instruction("DEFINE GLOBAL", self, offset);
         case GET_GLOBAL:
-            return constantInstruction("GET GLOBAL", self, offset);
+            return constant_instruction("GET GLOBAL", self, offset);
         case SET_GLOBAL:
-            return constantInstruction("SET GLOBAL", self, offset);
+            return constant_instruction("SET GLOBAL", self, offset);
 
         /* Byte Instructions */
         case GET_LOCAL:
-            return byteInstruction("GET LOCAL", self, offset);
+            return byte_instruction("GET LOCAL", self, offset);
         case SET_LOCAL:
-            return byteInstruction("SET LOCAL", self, offset);
+            return byte_instruction("SET LOCAL", self, offset);
 
         /* Jump Instructions */
         case JUMP:
-            return jumpInstruction("JUMP", 1, self, offset);
+            return jump_instruction("JUMP", 1, self, offset);
         case JUMP_IF_TRUE:
-            return jumpInstruction("JUMP IF TRUE", 1, self, offset);
+            return jump_instruction("JUMP IF TRUE", 1, self, offset);
         case JUMP_IF_FALSE:
-            return jumpInstruction("JUMP IF FALSE", 1, self, offset);
+            return jump_instruction("JUMP IF FALSE", 1, self, offset);
         case LOOP:
-            return jumpInstruction("LOOP", -1, self, offset);
+            return jump_instruction("LOOP", -1, self, offset);
     }
 }
 
-fn int byteInstruction(String name, Chunk *chunk, int offset) @local
+fn int byte_instruction(String name, Chunk *chunk, int offset) @local
 {
     char slot = chunk.code[offset + 1];
-    io::eprintfn("%-14s %4d", name, slot);
+    utils::logn(NONE, "%-14s %4d", name, slot);
     return offset + 2;
 }
 
-fn int jumpInstruction(String name, int sign, Chunk *chunk, int offset) @local
+fn int jump_instruction(String name, int sign, Chunk *chunk, int offset) @local
 {
     ushort jump = (ushort)(chunk.code[offset + 1] << 8);
     jump |= chunk.code[offset + 2];
-    io::printfn("%-14s %4d -> %d", name, offset, offset + 3 + sign * jump);
+    utils::logn(NONE, "%-14s %4d -> %d", name, offset, offset + 3 + sign * jump);
     return offset + 3;
 }
 
 fn int constantInstruction(String name, Chunk *chunk, int offset) @local
 {
     int constant = chunk.code[offset + 1];
-    io::eprintf("%-14s %4d '", name, constant);
+    utils::log(NONE, "%-14s %4d '", name, constant);
     value::print(chunk.constants[constant], io::stderr());
-    io::eprintfn("'");
+    utils::logn(NONE, "'");
     return offset + 2;
 }
 
 fn int simpleInstruction(String name, int offset) @local
 {
     if (name == "RETURN")
-        { io::eprintfn("%s\n", name); }
+        { utils::logn(NONE, "%s\n", name); }
     else
-        { io::eprintfn(name); }
+        { utils::logn(NONE, name); }
 
     return offset + 1;
 }
