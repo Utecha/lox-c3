@@ -28,7 +28,7 @@ const DUMP_TOKENS           @builtin = false;
 const STRESS_GC             @builtin = false;
 
 /* Enables debug logging of the GC */
-const LOG_GC                @builtin = true;
+const LOG_GC                @builtin = false;
 
 //===----------------===//
 //  Optimization Flags

@@ -157,18 +157,9 @@ fn void Chunk.write(&self, char byte, int line)
     self.count++;
 }
 
-<*
-    Typecasts a value to (char).
-
-    NOTE: This is not to be confused with the 'Value' from Lox.
-    This refers to a literal C3 value.
-*>
-fn char to_byte(OpCode code) @builtin => code.ordinal;
-
-<*
-    Typecasts a (char) to an (OpCode).
-*>
-fn OpCode to_opcode(int byte) @builtin => OpCode.from_ordinal(byte);
+macro char obyte(OpCode code)   @builtin => code.ordinal;
+macro char ibyte(int byte)      @builtin => (char)byte;
+macro OpCode opcode(int byte)   @builtin => OpCode.from_ordinal(byte);
 
 <*
     Add's a 'Value' to a chunks constants pool and returns the index.
@@ -198,7 +189,7 @@ fn int Chunk.get_line(&self, int offset)
     while (start < end)
     {
         int mid = (start + end) / 2;
-        Line *line = &self.lines[mid];
+        Line line = self.lines[mid];
 
         if (offset < line.offset)
             { end = mid; }
@@ -252,7 +243,7 @@ fn int Chunk.disassemble_instruction(&self, int offset)
     else
         { io::eprintf("%4d ", line); }
 
-    OpCode instruction = (OpCode)self.code[offset];
+    OpCode instruction = opcode(self.code[offset]);
     switch (instruction)
     {
         case JUMP:

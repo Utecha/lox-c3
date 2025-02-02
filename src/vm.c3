@@ -574,7 +574,7 @@ fn void! run_interpreter() @private
         $endif
 
         OpCode instruction;
-        switch (instruction = (OpCode)read_byte(frame))
+        switch (instruction = opcode(read_byte(frame)))
         {
             /* Jump Instructions */
             case JUMP:

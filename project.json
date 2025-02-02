@@ -11,12 +11,11 @@
   "targets": {
     "lox": {
       "type": "executable",
-      "features":  [  ],
-      "linked-libraries":  [ "readline" ]
+      "features":  [],
     },
     "lox-windows": {
       "type": "executable",
-      "features":  [  ]
+      "features":  []
     }
   },
   "cpu": "generic",

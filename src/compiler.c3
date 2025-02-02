@@ -62,49 +62,49 @@ Parser parser @builtin;
     The (ParseRule)'s defined for the Lox language.
 *>
 ParseRule[*] rules = {
-    [TokenType.ERROR]       = { null,       null,       Precedence.NONE },
-    [TokenType.EOF]         = { null,       null,       Precedence.NONE },
-    [TokenType.LPAREN]      = { &grouping,  &call,      Precedence.CALL },
-    [TokenType.RPAREN]      = { null,       null,       Precedence.NONE },
-    [TokenType.LBRACE]      = { null,       null,       Precedence.NONE },
-    [TokenType.RBRACE]      = { null,       null,       Precedence.NONE },
-    [TokenType.COMMA]       = { null,       null,       Precedence.NONE },
-    [TokenType.DOT]         = { null,       &dot,       Precedence.CALL },
-    [TokenType.SEMICOLON]   = { null,       null,       Precedence.NONE },
-    [TokenType.COLON]       = { null,       null,       Precedence.NONE },
-    [TokenType.QMARK]       = { null,       &ternary,   Precedence.TERNARY },
-    [TokenType.NOT]         = { &unary,     null,       Precedence.NONE },
-    [TokenType.MODULUS]     = { null,       &binary,    Precedence.FACTOR },
-    [TokenType.SLASH]       = { null,       &binary,    Precedence.FACTOR },
-    [TokenType.STAR]        = { null,       &binary,    Precedence.FACTOR },
-    [TokenType.MINUS]       = { &unary,     &binary,    Precedence.TERM },
-    [TokenType.PLUS]        = { null,       &binary,    Precedence.TERM },
-    [TokenType.ISEQ]        = { null,       &binary,    Precedence.EQUALITY },
-    [TokenType.NOTEQ]       = { null,       &binary,    Precedence.EQUALITY },
-    [TokenType.GT]          = { null,       &binary,    Precedence.COMPARISON },
-    [TokenType.GTEQ]        = { null,       &binary,    Precedence.COMPARISON },
-    [TokenType.LT]          = { null,       &binary,    Precedence.COMPARISON },
-    [TokenType.LTEQ]        = { null,       &binary,    Precedence.COMPARISON },
-    [TokenType.EQUAL]       = { null,       null,       Precedence.NONE },
-    [TokenType.IDENTIFIER]  = { &variable,  null,       Precedence.NONE },
-    [TokenType.NUMBER]      = { &number,    null,       Precedence.NONE },
-    [TokenType.STRING]      = { &string,    null,       Precedence.NONE },
-    [TokenType.AND]         = { null,       &and,       Precedence.AND },
-    [TokenType.CLASS]       = { null,       null,       Precedence.NONE },
-    [TokenType.ELSE]        = { null,       null,       Precedence.NONE },
-    [TokenType.FALSE]       = { &literal,   null,       Precedence.NONE },
-    [TokenType.FOR]         = { null,       null,       Precedence.NONE },
-    [TokenType.FUN]         = { null,       null,       Precedence.NONE },
-    [TokenType.IF]          = { null,       null,       Precedence.NONE },
-    [TokenType.NIL]         = { &literal,   null,       Precedence.NONE },
-    [TokenType.OR]          = { null,       &or,        Precedence.OR },
-    [TokenType.PRINT]       = { null,       null,       Precedence.NONE },
-    [TokenType.RETURN]      = { null,       null,       Precedence.NONE },
-    [TokenType.SUPER]       = { &super,     null,       Precedence.NONE },
-    [TokenType.THIS]        = { &this,      null,       Precedence.NONE },
-    [TokenType.TRUE]        = { &literal,   null,       Precedence.NONE },
-    [TokenType.VAR]         = { null,       null,       Precedence.NONE },
-    [TokenType.WHILE]       = { null,       null,       Precedence.NONE },
+    [TokenType.ERROR.ordinal]       = { null,       null,       Precedence.NONE },
+    [TokenType.EOF.ordinal]         = { null,       null,       Precedence.NONE },
+    [TokenType.LPAREN.ordinal]      = { &grouping,  &call,      Precedence.CALL },
+    [TokenType.RPAREN.ordinal]      = { null,       null,       Precedence.NONE },
+    [TokenType.LBRACE.ordinal]      = { null,       null,       Precedence.NONE },
+    [TokenType.RBRACE.ordinal]      = { null,       null,       Precedence.NONE },
+    [TokenType.COMMA.ordinal]       = { null,       null,       Precedence.NONE },
+    [TokenType.DOT.ordinal]         = { null,       &dot,       Precedence.CALL },
+    [TokenType.SEMICOLON.ordinal]   = { null,       null,       Precedence.NONE },
+    [TokenType.COLON.ordinal]       = { null,       null,       Precedence.NONE },
+    [TokenType.QMARK.ordinal]       = { null,       &ternary,   Precedence.TERNARY },
+    [TokenType.NOT.ordinal]         = { &unary,     null,       Precedence.NONE },
+    [TokenType.MODULUS.ordinal]     = { null,       &binary,    Precedence.FACTOR },
+    [TokenType.SLASH.ordinal]       = { null,       &binary,    Precedence.FACTOR },
+    [TokenType.STAR.ordinal]        = { null,       &binary,    Precedence.FACTOR },
+    [TokenType.MINUS.ordinal]       = { &unary,     &binary,    Precedence.TERM },
+    [TokenType.PLUS.ordinal]        = { null,       &binary,    Precedence.TERM },
+    [TokenType.ISEQ.ordinal]        = { null,       &binary,    Precedence.EQUALITY },
+    [TokenType.NOTEQ.ordinal]       = { null,       &binary,    Precedence.EQUALITY },
+    [TokenType.GT.ordinal]          = { null,       &binary,    Precedence.COMPARISON },
+    [TokenType.GTEQ.ordinal]        = { null,       &binary,    Precedence.COMPARISON },
+    [TokenType.LT.ordinal]          = { null,       &binary,    Precedence.COMPARISON },
+    [TokenType.LTEQ.ordinal]        = { null,       &binary,    Precedence.COMPARISON },
+    [TokenType.EQUAL.ordinal]       = { null,       null,       Precedence.NONE },
+    [TokenType.IDENTIFIER.ordinal]  = { &variable,  null,       Precedence.NONE },
+    [TokenType.NUMBER.ordinal]      = { &number,    null,       Precedence.NONE },
+    [TokenType.STRING.ordinal]      = { &string,    null,       Precedence.NONE },
+    [TokenType.AND.ordinal]         = { null,       &and,       Precedence.AND },
+    [TokenType.CLASS.ordinal]       = { null,       null,       Precedence.NONE },
+    [TokenType.ELSE.ordinal]        = { null,       null,       Precedence.NONE },
+    [TokenType.FALSE.ordinal]       = { &literal,   null,       Precedence.NONE },
+    [TokenType.FOR.ordinal]         = { null,       null,       Precedence.NONE },
+    [TokenType.FUN.ordinal]         = { null,       null,       Precedence.NONE },
+    [TokenType.IF.ordinal]          = { null,       null,       Precedence.NONE },
+    [TokenType.NIL.ordinal]         = { &literal,   null,       Precedence.NONE },
+    [TokenType.OR.ordinal]          = { null,       &or,        Precedence.OR },
+    [TokenType.PRINT.ordinal]       = { null,       null,       Precedence.NONE },
+    [TokenType.RETURN.ordinal]      = { null,       null,       Precedence.NONE },
+    [TokenType.SUPER.ordinal]       = { &super,     null,       Precedence.NONE },
+    [TokenType.THIS.ordinal]        = { &this,      null,       Precedence.NONE },
+    [TokenType.TRUE.ordinal]        = { &literal,   null,       Precedence.NONE },
+    [TokenType.VAR.ordinal]         = { null,       null,       Precedence.NONE },
+    [TokenType.WHILE.ordinal]       = { null,       null,       Precedence.NONE },
 };
 
 <*
@@ -375,8 +375,8 @@ fn void patch_jump(int offset)
         error::@previous("Too much code to jump over");
     }
 
-    current_chunk().code[offset] = to_byte((jump >> 8) & 0xff);
-    current_chunk().code[offset + 1] = to_byte(jump & 0xff);
+    current_chunk().code[offset] = ibyte((jump >> 8) & 0xff);
+    current_chunk().code[offset + 1] = ibyte(jump & 0xff);
 }
 
 <*
@@ -387,7 +387,7 @@ fn void patch_jump(int offset)
 *>
 fn void emit_loop(int loop_start) @private
 {
-    emit_byte(to_byte(OpCode.LOOP));
+    emit_byte(obyte(LOOP));
 
     int offset = current_chunk().count - loop_start + 2;
     if (offset > ushort.max)
@@ -395,8 +395,8 @@ fn void emit_loop(int loop_start) @private
         error::@previous("Loop body is too large");
     }
 
-    emit_byte(to_byte((offset >> 8) & 0xff));
-    emit_byte(to_byte(offset & 0xff));
+    emit_byte(ibyte((offset >> 8) & 0xff));
+    emit_byte(ibyte(offset & 0xff));
 }
 
 <*
@@ -425,7 +425,7 @@ fn char make_constant(Value value) @private
 *>
 fn void emit_constant(Value value) @private
 {
-    emit_bytes(to_byte(OpCode.CONSTANT), make_constant(value));
+    emit_bytes(obyte(CONSTANT), make_constant(value));
 }
 
 <*
@@ -434,11 +434,11 @@ fn void emit_constant(Value value) @private
 fn void emit_return() @private
 {
     if (current.type == FunctionType.INITIALIZER)
-        { emit_bytes(to_byte(OpCode.GET_LOCAL), 0); }
+        { emit_bytes(obyte(GET_LOCAL), 0); }
     else
-        { emit_byte(to_byte(OpCode.NIL)); }
+        { emit_byte(obyte(NIL)); }
 
-    emit_byte(to_byte(OpCode.RETURN));
+    emit_byte(obyte(RETURN));
 }
 
 <*
@@ -494,9 +494,9 @@ fn void end_scope()
            current.locals[current.local_count - 1].depth > current.scope_depth)
     {
         if (current.locals[current.local_count - 1].is_captured)
-            { emit_byte(to_byte(OpCode.CLOSE_UPVALUE)); }
+            { emit_byte(obyte(CLOSE_UPVALUE)); }
         else
-            { emit_byte(to_byte(OpCode.POP)); }
+            { emit_byte(obyte(POP)); }
 
         current.local_count--;
     }
@@ -509,10 +509,10 @@ fn void end_scope()
 *>
 fn void ternary(bool can_assign) @private
 {
-    parse_precedence(Precedence.TERNARY);
-    consume(TokenType.COLON, "Expected ':' between ternary 'true' and 'false' branches");
-    parse_precedence(Precedence.TERNARY);
-    emit_byte(to_byte(OpCode.TERNARY));
+    parse_precedence(TERNARY);
+    consume(COLON, "Expected ':' between ternary 'true' and 'false' branches");
+    parse_precedence(TERNARY);
+    emit_byte(obyte(TERNARY));
 }
 
 <*
@@ -528,17 +528,17 @@ fn void binary(bool can_assign) @private
 
     switch (op_type)
     {
-        case ISEQ:      emit_byte(to_byte(OpCode.EQUAL));
-        case NOTEQ:     emit_bytes(to_byte(OpCode.EQUAL), to_byte(OpCode.NOT));
-        case GT:        emit_byte(to_byte(OpCode.GREATER));
-        case GTEQ:      emit_bytes(to_byte(OpCode.LESS), to_byte(OpCode.NOT));
-        case LT:        emit_byte(to_byte(OpCode.LESS));
-        case LTEQ:      emit_bytes(to_byte(OpCode.GREATER), to_byte(OpCode.NOT));
-        case MINUS:     emit_byte(to_byte(OpCode.SUBTRACT));
-        case PLUS:      emit_byte(to_byte(OpCode.ADD));
-        case MODULUS:   emit_byte(to_byte(OpCode.MODULUS));
-        case SLASH:     emit_byte(to_byte(OpCode.DIVIDE));
-        case STAR:      emit_byte(to_byte(OpCode.MULTIPLY));
+        case ISEQ:      emit_byte(obyte(EQUAL));
+        case NOTEQ:     emit_bytes(obyte(EQUAL), obyte(NOT));
+        case GT:        emit_byte(obyte(GREATER));
+        case GTEQ:      emit_bytes(obyte(LESS), obyte(NOT));
+        case LT:        emit_byte(obyte(LESS));
+        case LTEQ:      emit_bytes(obyte(GREATER), obyte(NOT));
+        case MINUS:     emit_byte(obyte(SUBTRACT));
+        case PLUS:      emit_byte(obyte(ADD));
+        case MODULUS:   emit_byte(obyte(MODULUS));
+        case SLASH:     emit_byte(obyte(DIVIDE));
+        case STAR:      emit_byte(obyte(MULTIPLY));
         default:        return; // Unreachable
     }
 }
@@ -551,7 +551,7 @@ fn void binary(bool can_assign) @private
 fn void call(bool can_assign) @private
 {
     char arg_count = argument_list();
-    emit_bytes(to_byte(OpCode.CALL), arg_count);
+    emit_bytes(obyte(CALL), arg_count);
 }
 
 <*
@@ -567,17 +567,17 @@ fn void dot(bool can_assign) @private
     if (can_assign && match(EQUAL))
     {
         expression();
-        emit_bytes(to_byte(OpCode.SET_PROPERTY), name);
+        emit_bytes(obyte(SET_PROPERTY), name);
     }
     else if (match(LPAREN))
     {
         char argc = argument_list();
-        emit_bytes(to_byte(OpCode.INVOKE), name);
+        emit_bytes(obyte(INVOKE), name);
         emit_byte(argc);
     }
     else
     {
-        emit_bytes(to_byte(OpCode.GET_PROPERTY), name);
+        emit_bytes(obyte(GET_PROPERTY), name);
     }
 }
 
@@ -590,9 +590,9 @@ fn void literal(bool can_assign) @private
 {
     switch (parser.previous.type)
     {
-        case FALSE: emit_byte(to_byte(OpCode.FALSE));
-        case NIL:   emit_byte(to_byte(OpCode.NIL));
-        case TRUE:  emit_byte(to_byte(OpCode.TRUE));
+        case FALSE: emit_byte(obyte(FALSE));
+        case NIL:   emit_byte(obyte(NIL));
+        case TRUE:  emit_byte(obyte(TRUE));
         default:    return; // Unreachable
     }
 }
@@ -605,7 +605,7 @@ fn void literal(bool can_assign) @private
 fn void grouping(bool can_assign) @private
 {
     expression();
-    consume(TokenType.RPAREN, "Expected ')' after expression");
+    consume(RPAREN, "Expected ')' after expression");
 }
 
 <*
@@ -644,13 +644,12 @@ fn void string(bool can_assign) @private
 fn void unary(bool can_assign) @private
 {
     TokenType op_type = parser.previous.type;
-
-    parse_precedence(Precedence.UNARY);
+    parse_precedence(UNARY);
 
     switch (op_type)
     {
-        case MINUS: emit_byte(to_byte(OpCode.NEGATE));
-        case NOT:   emit_byte(to_byte(OpCode.NOT));
+        case MINUS: emit_byte(obyte(NEGATE));
+        case NOT:   emit_byte(obyte(NOT));
         default:    return; // Unreachable
     }
 }
@@ -668,29 +667,29 @@ fn void named_variable(Token name, bool can_assign) @private
 
     if (arg != -1)
     {
-        get_op = to_byte(OpCode.GET_LOCAL);
-        set_op = to_byte(OpCode.SET_LOCAL);
+        get_op = obyte(GET_LOCAL);
+        set_op = obyte(SET_LOCAL);
     }
     else if ((arg = resolve_upvalue(current, &name)) != -1)
     {
-        get_op = to_byte(OpCode.GET_UPVALUE);
-        set_op = to_byte(OpCode.SET_UPVALUE);
+        get_op = obyte(GET_UPVALUE);
+        set_op = obyte(SET_UPVALUE);
     }
     else
     {
         arg = identifier_constant(&name);
-        get_op = to_byte(OpCode.GET_GLOBAL);
-        set_op = to_byte(OpCode.SET_GLOBAL);
+        get_op = obyte(GET_GLOBAL);
+        set_op = obyte(SET_GLOBAL);
     }
 
-    if (can_assign && match(TokenType.EQUAL))
+    if (can_assign && match(EQUAL))
     {
         expression();
-        emit_bytes(set_op, (char)arg);
+        emit_bytes(set_op, ibyte(arg));
     }
     else
     {
-        emit_bytes(get_op, (char)arg);
+        emit_bytes(get_op, ibyte(arg));
     }
 }
 
@@ -740,13 +739,13 @@ fn void super(bool can_assign) @private
         char argc = argument_list();
         named_variable(synthetic_token("super"), false);
 
-        emit_bytes(to_byte(OpCode.SUPER_INVOKE), name);
+        emit_bytes(obyte(SUPER_INVOKE), name);
         emit_byte(argc);
     }
     else
     {
         named_variable(synthetic_token("super"), false);
-        emit_bytes(to_byte(OpCode.GET_SUPER), name);
+        emit_bytes(obyte(GET_SUPER), name);
     }
 }
 
@@ -775,7 +774,7 @@ fn void this(bool can_assign) @private
 *>
 fn ParseRule *get_rule(TokenType type) @private
 {
-    return &rules[type];
+    return &rules[type.ordinal];
 }
 
 <*
@@ -805,7 +804,7 @@ fn void parse_precedence(Precedence precedence) @private
         infix_rule(can_assign);
     }
 
-    if (can_assign && match(TokenType.EQUAL))
+    if (can_assign && match(EQUAL))
         { error::@previous("Invalid assignment target"); }
 }
 
@@ -913,13 +912,13 @@ fn int resolve_upvalue(Compiler *compiler, Token *name)
     if (local != -1)
     {
         compiler.enclosing.locals[local].is_captured = true;
-        return add_upvalue(compiler, to_byte(local), true);
+        return add_upvalue(compiler, ibyte(local), true);
     }
 
     int upvalue = resolve_upvalue(compiler.enclosing, name);
     if (upvalue != -1)
     {
-        return add_upvalue(compiler, to_byte(upvalue), false);
+        return add_upvalue(compiler, ibyte(upvalue), false);
     }
 
     return -1;
@@ -963,7 +962,6 @@ fn void declare_variable() @private
             error::@previous("Already a variable with this name in this scope");
         }
     }
-
 
     add_local(*name);
 }
@@ -1009,7 +1007,7 @@ fn void define_variable(char global) @private
         return;
     }
 
-    emit_bytes(to_byte(OpCode.DEFINE_GLOBAL), global);
+    emit_bytes(obyte(DEFINE_GLOBAL), global);
 }
 
 <*
@@ -1045,10 +1043,10 @@ fn char argument_list() @private
 *>
 fn void and(bool can_assign) @private
 {
-    int end_jump = emit_jump(to_byte(OpCode.JUMP_IF_FALSE));
+    int end_jump = emit_jump(obyte(JUMP_IF_FALSE));
 
-    emit_byte(to_byte(OpCode.POP));
-    parse_precedence(Precedence.AND);
+    emit_byte(obyte(POP));
+    parse_precedence(AND);
 
     patch_jump(end_jump);
 }
@@ -1060,13 +1058,13 @@ fn void and(bool can_assign) @private
 *>
 fn void or(bool can_assign) @private
 {
-    int else_jump = emit_jump(to_byte(OpCode.JUMP_IF_FALSE));
-    int end_jump = emit_jump(to_byte(OpCode.JUMP));
+    int else_jump = emit_jump(obyte(JUMP_IF_FALSE));
+    int end_jump = emit_jump(obyte(JUMP));
 
     patch_jump(else_jump);
-    emit_byte(to_byte(OpCode.POP));
+    emit_byte(obyte(POP));
 
-    parse_precedence(Precedence.OR);
+    parse_precedence(OR);
     patch_jump(end_jump);
 }
 
@@ -1075,7 +1073,7 @@ fn void or(bool can_assign) @private
 *>
 fn void expression() @private
 {
-    parse_precedence(Precedence.ASSIGNMENT);
+    parse_precedence(ASSIGNMENT);
 }
 
 <*
@@ -1134,7 +1132,7 @@ fn void expression_statement() @private
 {
     expression();
     consume(SEMICOLON, "Expected ';' after expression");
-    emit_byte(to_byte(OpCode.POP));
+    emit_byte(obyte(POP));
 }
 
 <*
@@ -1155,23 +1153,23 @@ fn void for_statement() @private
     int loop_start = current_chunk().count;
     int exit_jump = -1;
 
-    if (!match(TokenType.SEMICOLON))
+    if (!match(SEMICOLON))
     {
         expression();
         consume(SEMICOLON, "Expected ';' after 'for' loop condition");
 
         // Jump out of the loop if the condition is false
-        exit_jump = emit_jump(to_byte(OpCode.JUMP_IF_FALSE));
-        emit_byte(to_byte(OpCode.POP));
+        exit_jump = emit_jump(obyte(JUMP_IF_FALSE));
+        emit_byte(obyte(POP));
     }
 
     if (!match(TokenType.RPAREN))
     {
-        int body_jump = emit_jump(to_byte(OpCode.JUMP));
+        int body_jump = emit_jump(obyte(JUMP));
         int increment_start = current_chunk().count;
 
         expression();
-        emit_byte(to_byte(OpCode.POP));
+        emit_byte(obyte(POP));
         consume(RPAREN, "Expected ')' after 'for' loop clauses");
 
         emit_loop(loop_start);
@@ -1185,7 +1183,7 @@ fn void for_statement() @private
     if (exit_jump != -1)
     {
         patch_jump(exit_jump);
-        emit_byte(to_byte(OpCode.POP));
+        emit_byte(obyte(POP));
     }
 
     end_scope();
@@ -1226,12 +1224,12 @@ fn void function(FunctionType type) @private
     block();
 
     ObjFunction *function = end_compiler();
-    emit_bytes(to_byte(OpCode.CLOSURE), make_constant(obj_val(function)));
+    emit_bytes(obyte(CLOSURE), make_constant(obj_val(function)));
 
     for (int i = 0; i < function.upvalue_count; i++)
     {
         emit_byte(compiler.upvalues[i].is_local ? 1 : 0);
-        emit_byte((char)compiler.upvalues[i].index);
+        emit_byte(ibyte(compiler.upvalues[i].index));
     }
 }
 
@@ -1251,7 +1249,7 @@ fn void method() @private
         { type = FunctionType.INITIALIZER; }
 
     function(type);
-    emit_bytes(to_byte(OpCode.METHOD), constant);
+    emit_bytes(obyte(METHOD), constant);
 }
 
 <*
@@ -1263,13 +1261,13 @@ fn void if_statement() @private
     expression();
     consume(RPAREN, "Expected ')' after 'if' condition");
 
-    int then_jump = emit_jump(to_byte(OpCode.JUMP_IF_FALSE));
-    emit_byte(to_byte(OpCode.POP));
+    int then_jump = emit_jump(obyte(JUMP_IF_FALSE));
+    emit_byte(obyte(POP));
     statement();
 
-    int else_jump = emit_jump(to_byte(OpCode.JUMP));
+    int else_jump = emit_jump(obyte(JUMP));
     patch_jump(then_jump);
-    emit_byte(to_byte(OpCode.POP));
+    emit_byte(obyte(POP));
 
     if (match(ELSE)) statement();
     patch_jump(else_jump);
@@ -1284,7 +1282,7 @@ fn void print_statement() @private
 {
     expression();
     consume(SEMICOLON, "Expected ';' after 'print' value");
-    emit_byte(to_byte(OpCode.PRINT));
+    emit_byte(obyte(PRINT));
 }
 
 <*
@@ -1310,7 +1308,7 @@ fn void return_statement() @private
 
         expression();
         consume(SEMICOLON, "Expected ';' after 'return' value");
-        emit_byte(to_byte(OpCode.RETURN));
+        emit_byte(obyte(RETURN));
     }
 }
 
@@ -1328,14 +1326,14 @@ fn void while_statement() @private
     expression();
     consume(RPAREN, "Expected ')' after 'while' condition");
 
-    int exit_jump = emit_jump(to_byte(OpCode.JUMP_IF_FALSE));
-    emit_byte(to_byte(OpCode.POP));
+    int exit_jump = emit_jump(obyte(JUMP_IF_FALSE));
+    emit_byte(obyte(POP));
     statement();
 
     emit_loop(loop_start);
 
     patch_jump(exit_jump);
-    emit_byte(to_byte(OpCode.POP));
+    emit_byte(obyte(POP));
 }
 
 <*
@@ -1369,7 +1367,7 @@ fn void class_declaration() @private
     char name_constant = identifier_constant(&parser.previous);
     declare_variable();
 
-    emit_bytes(to_byte(OpCode.CLASS), name_constant);
+    emit_bytes(obyte(CLASS), name_constant);
     define_variable(name_constant);
 
     ClassCompiler class_compiler;
@@ -1390,7 +1388,7 @@ fn void class_declaration() @private
         define_variable(0);
 
         named_variable(class_name, false);
-        emit_byte(to_byte(OpCode.INHERIT));
+        emit_byte(obyte(INHERIT));
         class_compiler.has_superclass = true;
     }
 
@@ -1400,7 +1398,7 @@ fn void class_declaration() @private
         { method(); }
 
     consume(RBRACE, "Expected '}' after class body.");
-    emit_byte(to_byte(OpCode.POP));
+    emit_byte(obyte(POP));
 
     if (class_compiler.has_superclass)
         { end_scope(); }
@@ -1415,7 +1413,7 @@ fn void fun_declaration() @private
 {
     char global = parse_variable("Expected function name");
     mark_initialized();
-    function(FunctionType.FUNCTION);
+    function(FUNCTION);
     define_variable(global);
 }
 
@@ -1426,17 +1424,16 @@ fn void var_declaration() @private
 {
     char global = parse_variable("Expected variable name");
 
-    if (match(TokenType.EQUAL))
+    if (match(EQUAL))
     {
         expression();
     }
     else
     {
-        emit_byte(to_byte(OpCode.NIL));
+        emit_byte(obyte(NIL));
     }
 
     consume(SEMICOLON, "Expected ';' after variable declaration");
-
     define_variable(global);
 }
 
@@ -1448,19 +1445,19 @@ fn void synchronize() @private
 {
     parser.panic_mode = false;
 
-    while (parser.current.type != TokenType.EOF)
+    while (parser.current.type != EOF)
     {
-        if (parser.previous.type == TokenType.SEMICOLON) return;
+        if (parser.previous.type == SEMICOLON) return;
         switch (parser.current.type)
         {
-            case TokenType.CLASS:
-            case TokenType.FOR:
-            case TokenType.FUN:
-            case TokenType.IF:
-            case TokenType.PRINT:
-            case TokenType.RETURN:
-            case TokenType.VAR:
-            case TokenType.WHILE:
+            case CLASS:
+            case FOR:
+            case FUN:
+            case IF:
+            case PRINT:
+            case RETURN:
+            case VAR:
+            case WHILE:
                 return;
             default:
                 ; // Do nothing
@@ -1485,13 +1482,13 @@ fn ObjFunction *compile(char *source)
     lexer::init(source);
 
     Compiler compiler;
-    init(&compiler, FunctionType.SCRIPT);
+    init(&compiler, SCRIPT);
 
     parser.had_error = false;
     parser.panic_mode = false;
 
     advance();
-    while (!match(TokenType.EOF))
+    while (!match(EOF))
     {
         declaration();
     }
