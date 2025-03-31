@@ -1,21 +1,21 @@
 {
   "langrev": "1",
-  "authors":  [ "Chandler Warner <cwarneratwork@proton.me>" ],
-  "version": "0.1.1",
-  "warnings":  [ "no-unused" ],
-  "dependency-search-paths":  [ "lib" ],
-  "dependencies":  [  ],
-  "sources":  [ "src/**" ],
-  "test-sources":  [ "test/**" ],
+  "authors": ["Chandler Warner <cwarneratwork@proton.me>"],
+  "version": "0.0.1",
+  "warnings": ["no-unused"],
+  "dependency-search-paths": ["lib"],
+  "dependencies": [],
+  "sources": ["src/**"],
+  "test-sources": ["test/**"],
   "output": "build",
   "targets": {
     "lox": {
       "type": "executable",
-      "features":  [],
+      "features": ["DEBUG"]
     },
     "lox-windows": {
       "type": "executable",
-      "features":  []
+      "features": []
     }
   },
   "cpu": "generic",
