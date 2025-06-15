@@ -1,25 +1,36 @@
 {
   "langrev": "1",
-  "authors": ["Chandler Warner <cwarneratwork@proton.me>"],
-  "version": "0.0.1",
-  "warnings": ["no-unused"],
-  "dependency-search-paths": ["lib"],
+  "authors": [ "Chandler Warner <cwarneratwork@proton.me>" ],
+  "version": "0.2.0",
+  "warnings": [ "no-unused" ],
+  "dependency-search-paths": [ "lib" ],
   "dependencies": [],
-  "sources": ["src/**"],
-  "test-sources": ["test/**"],
   "output": "build",
+  "sources": [ "src/**" ],
+  "test-sources": [ "test/**" ],
   "targets": {
     "lox": {
       "type": "executable",
-      "features": ["DEBUG"]
+      "features": [ "NAN_TAGGING" ],
+    },
+    "lox-debug": {
+      "name": "lox",
+      "type": "executable",
+      "features": [ "DEBUG", "NAN_TAGGING" ]
     },
     "lox-windows": {
+      "name": "lox",
       "type": "executable",
-      "features": []
-    }
+      "features": [ "NAN_TAGGING" ]
+    },
+    "lox-windows-debug": {
+      "name": "lox",
+      "type": "executable",
+      "features": [ "DEBUG", "NAN_TAGGING" ]
+    },
   },
   "cpu": "generic",
-  "opt": "O0",
-  "safe": true,
-  "debug-info": "full"
+  "opt": "O3",
+  "safe": false,
+  "debug-info": "none"
 }

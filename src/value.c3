@@ -1,46 +1,85 @@
-//------------------------------------------------------------------------------
-module lox::vm::value;
-import lox::utils, lox::vm::array, lox::vm::gc;
+module lox::value;
+import lox::buffer, lox::chunk, lox::memory;
+import lox::table, lox::vm;
+import std::io @norecurse;
 
 //------------------------------------------------------------------------------
-// Object Definitions
+// Value | Common
 //------------------------------------------------------------------------------
 
-enum ObjType : int
+alias ValueBuffer = Buffer { Value };
+alias NativeFn = fn Value (int argc, Value *args);
+
+//------------------------------------------------------------------------------
+
+enum ObjType : inline int
 {
+    BOUND_METHOD,
+    CLASS,
+    CLOSURE,
     FUNCTION,
+    INSTANCE,
+    NATIVE,
     STRING,
-}
-
-// Used for the RLE of line numbers
-struct Line
-{
-    int number;
-    int offset;
+    UPVALUE,
 }
 
 struct Obj
 {
     ObjType type;
-    bool isMarked;
+    bool is_marked;
     Obj *next;
+}
+
+struct ObjBoundMethod
+{
+    Obj obj;
+    Value receiver;
+    ObjClosure *method;
+}
+
+struct ObjClass
+{
+    Obj obj;
+    ObjString *name;
+    Table methods;
+}
+
+struct ObjClosure
+{
+    Obj obj;
+    ObjFn *function;
+    ObjUpvalue **upvalues;
+    int upvalue_count;
 }
 
 struct CallFrame
 {
+    ObjClosure *closure;
     char *ip;
-    ObjFn *function;
-    Value *stackStart;
+    Value *slots;
 }
 
 struct ObjFn
 {
     Obj obj;
     int arity;
+    int upvalue_count;
+    Chunk chunk;
     ObjString *name;
-    Array { char } code;
-    Array { Line } lines;
-    Array { Value } constants;
+}
+
+struct ObjInstance
+{
+    Obj obj;
+    ObjClass *class;
+    Table fields;
+}
+
+struct ObjNative
+{
+    Obj obj;
+    NativeFn function;
 }
 
 struct ObjString
@@ -48,290 +87,404 @@ struct ObjString
     Obj obj;
     uint length;
     uint hash;
-    char[*] value;
+    char *value;
+}
+
+struct ObjUpvalue
+{
+    Obj obj;
+    Value *location;
+    Value closed;
+    ObjUpvalue *next;
 }
 
 //------------------------------------------------------------------------------
-// Value-Centric Macros
+
+macro obj_type(value)       @builtin => as_obj(value).type;
+
+macro make_num(number)      @builtin => number_to_value(number);
+macro make_obj(object)      @builtin => object_to_value((Obj *)object);
+
+macro as_bound_method(value)    @builtin => (ObjBoundMethod *)as_obj(value);
+macro as_class(value)           @builtin => (ObjClass *)as_obj(value);
+macro as_closure(value)         @builtin => (ObjClosure *)as_obj(value);
+macro as_function(value)        @builtin => (ObjFn *)as_obj(value);
+macro as_instance(value)        @builtin => (ObjInstance *)as_obj(value);
+macro as_num(value)             @builtin => value_to_number(value);
+macro as_native(value)          @builtin => ((ObjNative *)as_obj(value)).function;
+macro as_string(value)          @builtin => (ObjString *)as_obj(value);
+macro as_cstring(value)         @builtin => objstring_to_string(value);
+
+macro is_bool(value)            @builtin => value_is_bool(value);
+macro is_bound_method(value)    @builtin => is_obj_type(value, BOUND_METHOD);
+macro is_class(value)           @builtin => is_obj_type(value, CLASS);
+macro is_closure(value)         @builtin => is_obj_type(value, CLOSURE);
+macro is_function(value)        @builtin => is_obj_type(value, FUNCTION);
+macro is_instance(value)        @builtin => is_obj_type(value, INSTANCE);
+macro is_native(value)          @builtin => is_obj_type(value, NATIVE);
+macro is_string(value)          @builtin => is_obj_type(value, STRING);
+
 //------------------------------------------------------------------------------
 
-/*
- * Promotes a literal C3 value to a Lox Value of the appropriate type.
-*/
-macro Value fromBool(boolean)   @builtin => boolean ? TRUE_VAL : FALSE_VAL;
-macro Value fromNil()           @builtin => NIL_VAL;
-macro Value fromNum(number)     @builtin => numToValue(number);
-macro Value fromObj(object)     @builtin => objToValue((Obj *)object);
+fn bool is_obj_type(Value value, ObjType type) @inline
+{
+    return is_obj(value) && obj_type(value) == type;
+}
 
-/*
- * Extracts a literal C3 value out of a Lox Value of the appropriate type.
-*/
-macro bool asBool(value)    @builtin => value == TRUE_VAL;
-macro double asNum(value)   @builtin => valueToNum(value);
-macro Obj *asObj(value)     @builtin => valueToObj(value);
+fn bool value_is_bool(Value value) @inline
+{
+    $if $feature(NAN_TAGGING):
+        return value == TRUE_VAL || value == FALSE_VAL;
+    $else
+        return value.type == BOOL;
+    $endif
+}
 
-/*
- * Type check a respective Value type.
-*/
-macro bool isBool(value)    @builtin => valueIsBool(value);
-macro bool isNil(value)     @builtin => valueIsNil(value);
-macro bool isNum(value)     @builtin => valueIsNum(value);
-macro bool isObj(value)     @builtin => valueIsObj(value);
+fn Value object_to_value(Obj *object)
+{
+    $if $feature(NAN_TAGGING):
+        return (Value)(SIGN_BIT | QNAN | (ulong)(uptr)(object));
+    $else
+        return (Value) { OBJ, { .obj = object } };
+    $endif
+}
 
-//------------------------------------------------------------------------------
-// Value-Centric Functions
-//------------------------------------------------------------------------------
-
-fn Value numToValue(double number) @local @inline
+fn Value number_to_value(double number) @inline
 {
     $if $feature(NAN_TAGGING):
         Value value;
         mem::copy(&value, &number, double.sizeof);
         return value;
     $else
-        return (Value) { ValueType.NUMBER, { .number = number } };
+        return (Value) { NUMBER, { .number = number } };
     $endif
 }
 
-fn double valueToNum(Value value) @local @inline
+fn double value_to_number(Value value) @inline
 {
     $if $feature(NAN_TAGGING):
         double number;
         mem::copy(&number, &value, Value.sizeof);
-        return value;
+        return number;
     $else
         return value.as.number;
     $endif
 }
 
-fn Value objToValue(Obj *object) @local @inline
+fn String objstring_to_string(Value value)
+{
+    if (!is_string(value)) return "";
+    ObjString *string = as_string(value);
+    return (String)(string.value[:string.length]);
+}
+
+fn void print_function(ObjFn *function)
+{
+    if (function.name == null)
+    {
+        io::printf("<script>");
+        return;
+    }
+
+    io::printf("<fn %s>", (ZString)function.name.value);
+}
+
+fn void print_object(Value value)
+{
+    switch (obj_type(value))
+    {
+        case BOUND_METHOD:
+            print_function(as_bound_method(value).method.function);
+        case CLASS:
+            io::printf("%s", (ZString)as_class(value).name.value);
+        case CLOSURE:
+            print_function(as_closure(value).function);
+        case FUNCTION:
+            print_function(as_function(value));
+        case NATIVE:
+            io::printf("<native fn>");
+        case INSTANCE:
+            io::printf("Instance of '%s'", (ZString)as_instance(value).class.name.value);
+        case STRING:
+            io::printf("%s", as_cstring(value));
+        case UPVALUE:
+            io::printf("upvalue");
+    }
+}
+
+fn void print(Value value)
 {
     $if $feature(NAN_TAGGING):
-        return (Value)(SIGN_BIT | QNAN | (ulong)(uptr)(object));
+        switch
+        {
+            case is_bool(value):
+                io::print(as_bool(value) ? "true" : "false");
+            case is_nil(value):
+                io::print("nil");
+            case is_num(value):
+                io::printf("%.16g", as_num(value));
+            case is_obj(value):
+                print_object(value);
+        }
     $else
-        return (Value) { ValueType.OBJECT, { .obj = (Obj *)object } };
+        switch (value.type)
+        {
+            case BOOL:
+                io::print(as_bool(value) ? "true" : "false");
+            case NIL:
+                io::print("nil");
+            case NUMBER:
+                io::printf("%.16g", as_num(value));
+            case OBJ:
+                print_object(value);
+        }
     $endif
 }
 
-fn Obj *valueToObj(Value value) @local @inline
+fn bool equals(Value a, Value b)
 {
     $if $feature(NAN_TAGGING):
-        return (Obj *)(ulong)(value & ~(SIGN_BIT | QNAN));
+        // For IEEE 754 compliance
+        if (is_num(a) && is_num(b))
+        {
+            return as_num(a) == as_num(b);
+        }
+
+        return a == b;
     $else
-        return value.as.obj;
+        if (a.type != b.type) return false;
+        switch (a.type)
+        {
+            case BOOL:
+                return as_bool(a) == as_bool(b);
+            case NIL:
+                return true;
+            case NUMBER:
+                return as_num(a) == as_num(b);
+            case OBJ:
+                return as_obj(a) == as_obj(b);
+            default:
+                return false; // Unreachable
+        }
     $endif
 }
 
-fn bool valueIsBool(Value value) @local @inline
+fn bool is_falsey(Value value) @inline
 {
-    $if $feature(NAN_TAGGING):
-        return value == TRUE_VAL || value == FALSE_VAL;
-    $else
-        return value.type == ValueType.FALSE || value.type == ValueType.TRUE;
-    $endif
-}
-
-fn bool valueIsNil(Value value) @local @inline
-{
-    $if $feature(NAN_TAGGING):
-        return value == NIL_VAL;
-    $else
-        return value.type == ValueType.NIL;
-    $endif
-}
-
-fn bool valueIsObj(Value value) @local @inline
-{
-    $if $feature(NAN_TAGGING):
-        return (value & (QNAN | SIGN_BIT)) == (QNAN | SIGN_BIT);
-    $else
-        return value.type == ValueType.OBJECT;
-    $endif
-}
-
-fn bool valueIsNum(Value value) @local @inline
-{
-    $if $feature(NAN_TAGGING):
-        return ((value) & QNAN) != QNAN;
-    $else
-        return value.type == ValueType.NUMBER;
-    $endif
+    return is_nil(value) || (is_bool(value) && !as_bool(value));
 }
 
 //------------------------------------------------------------------------------
-// Object-Centric Macros
-//------------------------------------------------------------------------------
 
-/*
- * Extracts a C3 struct pointer out of a Lox Object of the appropriate type.
-*/
-macro ObjFn *asFunction(Value value) @builtin
-    => (ObjFn *)asObj(value);
-
-macro ObjString *asString(Value value) @builtin
-    => (ObjString *)asObj(value);
-
-macro String asCString(Value value) @builtin
-    => (String)asString(value).value[:asString(value).length];
-
-/*
- * Type check a respective Object type.
-*/
-macro bool isFunction(Value value) @builtin
-    => isObjType(value, ObjType.FUNCTION);
-
-macro bool isString(Value value) @builtin
-    => isObjType(value, ObjType.STRING);
-
-//------------------------------------------------------------------------------
-// Object-Centric Functions
-//------------------------------------------------------------------------------
-
-/*
- * Used by the macros above to safely type check an Object.
-*/
-fn bool isObjType(Value value, ObjType type)
-    => isObj(value) && asObj(value).type == type;
-
-/*
- * Extracts the type tag from an object.
-*/
-fn ObjType objType(Value value) @builtin
-    => asObj(value).type;
-
-fn void initObj(LoxVM *vm, Obj *obj, ObjType type) @local
+fn void init_obj(LoxVM *vm, Obj *obj, ObjType type)
 {
     obj.type = type;
-    obj.isMarked = false;
-    obj.next = vm.gc.first;
-    vm.gc.first = obj;
+    obj.is_marked = false;
+    obj.next = vm.objects;
+    vm.objects = obj;
 }
 
-fn ObjFn *newFunction(LoxVM *vm)
+macro allocate_obj($Type, vm, obj_type)
 {
-    ObjFn *function = allocate(ObjFn, &vm.gc);
-    initObj(vm, &function.obj, ObjType.FUNCTION);
+    var object = allocate($Type, vm);
 
+    $if $feature(DEBUG) &&& vm::LOG_GC:
+        io::printfn("%p | Allocated %d for %s", (void *)object, $Type.sizeof, obj_type);
+    $endif
+
+    return ($Type *)object;
+}
+
+fn ObjBoundMethod *new_bound_method(LoxVM *vm, Value receiver, ObjClosure *method)
+{
+    ObjBoundMethod *bound = allocate_obj(ObjBoundMethod, vm, ObjType.BOUND_METHOD);
+    bound.receiver = receiver;
+    bound.method = method;
+    return bound;
+}
+
+fn ObjClass *new_class(LoxVM *vm, ObjString *name)
+{
+    ObjClass *class = allocate_obj(ObjClass, vm, ObjType.CLASS);
+    init_obj(vm, &class.obj, CLASS);
+    class.name = name;
+    class.methods.init();
+    return class;
+}
+
+fn ObjClosure *new_closure(LoxVM *vm, ObjFn *function)
+{
+    ObjUpvalue **upvalues = allocate_array(ObjUpvalue *, vm, function.upvalue_count);
+    for (int i = 0; i < function.upvalue_count; i++)
+    {
+        upvalues[i] = null;
+    }
+
+    ObjClosure *closure = allocate_obj(ObjClosure, vm, ObjType.CLOSURE);
+    init_obj(vm, &closure.obj, CLOSURE);
+    closure.function = function;
+    closure.upvalues = upvalues;
+    closure.upvalue_count = function.upvalue_count;
+    return closure;
+}
+
+fn ObjFn *new_function(LoxVM *vm)
+{
+    ObjFn *function = allocate_obj(ObjFn, vm, ObjType.FUNCTION);
+    init_obj(vm, &function.obj, FUNCTION);
     function.arity = 0;
+    function.upvalue_count = 0;
+    function.chunk.init();
     function.name = null;
-    function.code.init();
-    function.lines.init();
-    function.constants.init();
-
     return function;
 }
 
-fn uint hashCString(char[] key, int length)
+fn ObjInstance *new_instance(LoxVM *vm, ObjClass *class)
 {
-    uint hash = 2166136261u;
-    for (int i = 0; i < length; i++)
+    ObjInstance *instance = allocate_obj(ObjInstance, vm, ObjType.INSTANCE);
+    init_obj(vm, &instance.obj, INSTANCE);
+    instance.class = class;
+    instance.fields.init();
+    return instance;
+}
+
+fn ObjNative *new_native(LoxVM *vm, NativeFn function)
+{
+    ObjNative *native = allocate_obj(ObjNative, vm, ObjType.NATIVE);
+    init_obj(vm, &native.obj, NATIVE);
+    native.function = function;
+    return native;
+}
+
+fn ObjString *allocate_string(LoxVM *vm, char *text, uint length, uint hash)
+{
+    ObjString *string = allocate_obj(ObjString, vm, ObjType.STRING);
+    init_obj(vm, &string.obj, STRING);
+    string.length = length;
+    string.hash = hash;
+    string.value = text;
+
+    vm::@push(vm, make_obj(string));
+    vm.strings.set(vm, string, make_nil());
+    vm::@pop(vm);
+
+    return string;
+}
+
+fn uint hash_string(char *text, uint length)
+{
+    uint hash = 2166136261U;
+
+    for (uint i = 0; i < length; i++)
     {
-        hash ^= (char)key[i];
+        hash ^= text[i];
         hash *= 16777619;
     }
 
     return hash;
 }
 
-macro hashString(ObjString *key)
+fn ObjString *copy_string(LoxVM *vm, char *text, uint length)
 {
-    key.hash = hashCString(key.value[:key.length], key.length);
+    uint hash = hash_string(text, length);
+    ObjString *interned = vm.strings.find_string(text, length, hash);
+
+    if (interned != null) return interned;
+
+    char *copy = allocate_array(char, vm, length + 1);
+    mem::copy(copy, text, length);
+    copy[length] = '\0';
+    return allocate_string(vm, copy, length, hash);
 }
 
-fn ObjString *allocateString(LoxVM *vm, usz length)
+fn ObjString *take_string(LoxVM *vm, char *text, uint length)
 {
-    ObjString *string = allocateFlex(ObjString, char, &vm.gc, length);
-    initObj(vm, &string.obj, ObjType.STRING);
-    string.length = (uint)length;
-    string.value[length] = '\0';
-    return string;
-}
+    uint hash = hash_string(text, length);
+    ObjString *interned = vm.strings.find_string(text, length, hash);
 
-// Effectively equivalent to the old 'copyString' function
-fn Value newStringLength(LoxVM *vm, char[] text, usz length)
-{
-    assert(length == 0 || text.len > 0, "Unexpected null string");
-    ObjString *string = allocateString(vm, length);
-
-    if (length > 0 && text.len > 0)
+    if (interned != null)
     {
-        mem::copy(&string.value[0], text, length);
+        deallocate_array(char, vm, text, length + 1);
+        return interned;
     }
 
-    hashString(string);
-    return fromObj(string);
+    return allocate_string(vm, text, length, hash);
 }
 
-// Effectively equivalent to the old 'takeString' function
-fn Value newString(LoxVM *vm, char[] text)
+fn ObjUpvalue *new_upvalue(LoxVM *vm, Value *slot)
 {
-    return newStringLength(vm, text, text.len);
+    ObjUpvalue *upvalue = allocate_obj(ObjUpvalue, vm, ObjType.UPVALUE);
+    init_obj(vm, &upvalue.obj, UPVALUE);
+    upvalue.location = slot;
+    upvalue.closed = make_nil();
+    upvalue.next = null;
+    return upvalue;
 }
 
 //------------------------------------------------------------------------------
-module lox::vm::value @if(!$feature(NAN_TAGGING));
+module lox::value @if(!$feature(NAN_TAGGING));
 
 //------------------------------------------------------------------------------
-// Value Definitions @if NOT (NAN_TAGGING)
+// Value | *NOT* NAN_TAGGING
 //------------------------------------------------------------------------------
 
-enum ValueType : int
+enum ValueType : inline int
 {
+    BOOL,
     NIL,
-    FALSE,
-    TRUE,
     NUMBER,
-    OBJECT
+    OBJ
 }
 
-// The base Value representation for Lox, if NAN_TAGGING is disabled.
 struct Value
 {
     ValueType type;
     union as
     {
+        bool boolean;
         double number;
         Obj *obj;
     }
 }
 
-/*
- * The actual singleton Values for the simple literals 'nil', 'false', and 'true'.
- * As they are singleton values and do not require arguments to produce, they are
- * defined as constants rather than macros.
-*/
-const Value NIL_VAL     = (Value) { ValueType.NIL, { 0 } };
-const Value FALSE_VAL   = (Value) { ValueType.FALSE, { 0 } };
-const Value TRUE_VAL    = (Value) { ValueType.TRUE, { 0 } };
-
-//------------------------------------------------------------------------------
-module lox::vm::value @if($feature(NAN_TAGGING));
-
-//------------------------------------------------------------------------------
-// Value Definitions @if (NAN_TAGGING)
 //------------------------------------------------------------------------------
 
-// A NaN-boxed Value is just a 64-bit unsigned integer
-typedef Value = ulong;
+macro make_bool(boolean)    @builtin => (Value) { BOOL, { .boolean = boolean } };
+macro make_nil()            @builtin => (Value) { NIL, { .number = 0 } };
 
-/*
- * Bit masks for defining NaN Values. *SIGN_BIT* being set along
- * with the *QNAN* bits signals an Obj type.
-*/
+macro as_bool(value)    @builtin => value.as.boolean;
+macro as_obj(value)     @builtin => value.as.obj;
+
+macro is_nil(value)     @builtin => value.type == NIL;
+macro is_num(value)     @builtin => value.type == NUMBER;
+macro is_obj(value)     @builtin => value.type == OBJ;
+
+//------------------------------------------------------------------------------
+module lox::value @if($feature(NAN_TAGGING));
+
+//------------------------------------------------------------------------------
+// Value | NAN_TAGGING
+//------------------------------------------------------------------------------
+
+typedef Value = inline ulong;
+
 const ulong SIGN_BIT    = (ulong)0x8000000000000000;
 const ulong QNAN        = (ulong)0x7ffc000000000000;
 
-/*
- * Bit tags that denote the simple literals 'nil', 'false', and 'true'.
- * These are bitwise OR'd with *QNAN* to produce the NaN-boxed Value.
-*/
-const ulong TAG_NIL     = 1;
-const ulong TAG_FALSE   = 2;
-const ulong TAG_TRUE    = 3;
+const int TAG_NIL   = 1;
+const int TAG_FALSE = 2;
+const int TAG_TRUE  = 3;
 
-/*
- * These are constants for the same reason as they are in (!NAN_TAGGING).
-*/
-const Value NIL_VAL     = (Value)(ulong)(QNAN | TAG_NIL);
-const Value FALSE_VAL   = (Value)(ulong)(QNAN | TAG_FALSE);
-const Value TRUE_VAL    = (Value)(ulong)(QNAN | TAG_TRUE);
+const Value NIL_VAL     @builtin = (Value)(ulong)(QNAN | TAG_NIL);
+const Value FALSE_VAL   @builtin = (Value)(ulong)(QNAN | TAG_FALSE);
+const Value TRUE_VAL    @builtin = (Value)(ulong)(QNAN | TAG_TRUE);
+
+macro make_bool(boolean)    @builtin => boolean ? TRUE_VAL : FALSE_VAL;
+macro make_nil()            @builtin => NIL_VAL;
+
+macro as_bool(value)    @builtin => (value == TRUE_VAL);
+macro as_obj(value)     @builtin => (Obj *)(uptr)(value & ~(SIGN_BIT | QNAN));
+
+macro is_nil(value)     @builtin => value == NIL_VAL;
+macro is_num(value)     @builtin => (value & QNAN) != QNAN;
+macro is_obj(value)     @builtin => (value & (QNAN | SIGN_BIT)) == (QNAN | SIGN_BIT);
