@@ -8,29 +8,36 @@
   "output": "build",
   "sources": [ "src/**" ],
   "test-sources": [ "test/**" ],
+  "cpu": "generic",
+  "safe": true,
   "targets": {
-    "lox": {
+    "release": {
+      "name": "lox",
       "type": "executable",
       "features": [ "NAN_TAGGING" ],
+      "opt": "O3",
+      "debug-info": "none",
     },
-    "lox-debug": {
+    "debug": {
       "name": "lox",
       "type": "executable",
-      "features": [ "DEBUG", "NAN_TAGGING" ]
+      "features": [ "DEBUG", "NAN_TAGGING" ],
+      "opt": "O0",
+      "debug-info": "full",
     },
-    "lox-windows": {
+    "release-no-nan-tagging": {
       "name": "lox",
       "type": "executable",
-      "features": [ "NAN_TAGGING" ]
+      "features": [ ],
+      "opt": "O3",
+      "debug-info": "none",
     },
-    "lox-windows-debug": {
+    "debug-no-nan-tagging": {
       "name": "lox",
       "type": "executable",
-      "features": [ "DEBUG", "NAN_TAGGING" ]
+      "features": [ "DEBUG" ],
+      "opt": "O0",
+      "debug-info": "full",
     },
   },
-  "cpu": "generic",
-  "opt": "O3",
-  "safe": false,
-  "debug-info": "none"
 }
