@@ -8,6 +8,9 @@ struct Buffer
     Type *data;
 }
 
+<*
+    @param [&inout] self : "The buffer to initialize"
+*>
 fn void Buffer.init(&self)
 {
     self.capacity = 0;
@@ -15,12 +18,23 @@ fn void Buffer.init(&self)
     self.data = null;
 }
 
+<*
+    @param [&inout] self : "The buffer to free"
+    @param [&inout] vm : "The VM managing the buffer"
+*>
 fn void Buffer.free(&self, LoxVM *vm)
 {
     deallocate_array(Type, vm, self.data, self.capacity);
     self.init();
 }
 
+<*
+    @param [&inout] self : "The buffer to write into"
+    @param [&inout] vm : "The VM managing the buffer"
+    @param data : "The data to write"
+
+    @ensure self.data != null
+*>
 fn void Buffer.write(&self, LoxVM *vm, Type data)
 {
     if (self.capacity < self.count + 1)
@@ -33,18 +47,32 @@ fn void Buffer.write(&self, LoxVM *vm, Type data)
     self.data[self.count++] = data;
 }
 
-<* @require index <= self.len() - 1 *>
+<*
+    @param [&inout] self : "The buffer to get data from"
+    @param index : "The index of the data in the buffer"
+
+    @require index < self.len()
+*>
 fn Type Buffer.get(&self, int index) @operator([])
 {
     return self.data[index];
 }
 
-<* @require index <= self.len() - 1 *>
-fn void Buffer.set(&self, int index, Type value) @operator([]=)
+<*
+    @param [&inout] self : "The buffer to set data in"
+    @param index : "The index to set the data in the buffer"
+    @param data : "The data to set"
+
+    @require index < self.len()
+*>
+fn void Buffer.set(&self, int index, Type data) @operator([]=)
 {
-    self.data[index] = value;
+    self.data[index] = data;
 }
 
+<*
+    @param [&inout] self : "The buffer to get the length of"
+*>
 fn int Buffer.len(&self) @operator(len)
 {
     return self.count;
