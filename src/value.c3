@@ -49,8 +49,6 @@ macro ObjFun *as_function(Value value)  => (ObjFun *)as_obj(value);
 // Value type checking
 macro bool is_function(Value value)     => is_obj_type(value, FUNCTION);
 
-//------------------------------------------------------------------------------
-
 <*
     Prints [value] to the standard output.
 

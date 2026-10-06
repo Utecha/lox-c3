@@ -6,7 +6,9 @@ import std::io @norecurse;
 //------------------------------------------------------------------------------
 
 // Configurable flags for enabling/disabling certain internal debugging features.
-const bool DUMP_CODE = true;
+const bool DUMP_CODE        = true;
+const bool DUMP_STACK       = true;
+const bool TRACE_EXECUTION  = false;
 
 //------------------------------------------------------------------------------
 
@@ -87,4 +89,23 @@ fn sz dump_instruction(ObjFun *fun, sz offset)
             io::printfn("Missing Instruction: '%s'", instruction.name);
             return offset + 1;
     }
+}
+
+<*
+    Dumps the current state of the stack.
+
+    @param [&inout] vm : "A pointer to a LoxVM."
+*>
+fn void dump_stack(LoxVM *vm)
+{
+    io::printf("[ LoxVM %p ]", vm);
+
+    for (Value *slot = vm.stack; slot < vm.stack_top; slot++)
+    {
+        io::print("[ ");
+        value::print(*slot);
+        io::print(" ]");
+    }
+
+    io::printn();
 }

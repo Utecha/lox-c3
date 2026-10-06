@@ -4,10 +4,7 @@ import lox;
 
 fn int main(String[] args)
 {
-    LoxConfig config;
-    lox::init_config(&config);
-
-    LoxVM *vm = lox::new(&config);
+    LoxVM *vm = lox::new();
     defer lox::free(vm);
 
     ObjFun *fun = value::new_function(vm);
@@ -26,5 +23,6 @@ fn int main(String[] args)
     value::write_code(vm, fun, RETURN, 2);
 
     debug::disassemble(fun, "test");
+    if (catch lox::interpret(vm, fun)) return -1;
     return 0;
 }
