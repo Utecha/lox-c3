@@ -68,7 +68,7 @@ fn void LoxArray.append(&self, LoxVM *vm, Type value)
     @param [&inout] self : "A reference to a LoxArray."
     @param index : "The index of the value to get."
 
-    @require index < self.length : "Out of bounds memory access."
+    @require [index] index < self.length : "Out of bounds memory access."
 *>
 fn Type LoxArray.get(&self, sz index) @operator([])
 {
@@ -85,7 +85,7 @@ fn Type LoxArray.get(&self, sz index) @operator([])
     @param [&inout] self : "A reference to a LoxArray."
     @param index : "The index of the value to get a reference to."
 
-    @require index < self.length : "Out of bounds memory access."
+    @require [index] index < self.length : "Out of bounds memory access."
 *>
 fn Type *LoxArray.get_ref(&self, sz index) @operator(&[])
 {
@@ -103,7 +103,7 @@ fn Type *LoxArray.get_ref(&self, sz index) @operator(&[])
     @param index : "The index of the data to set."
     @param value : "The value to set the data to."
 
-    @require index < self.length : "Out of bounds memory access."
+    @require [index] index < self.length : "Out of bounds memory access."
 *>
 fn void LoxArray.set(&self, sz index, Type value) @operator([]=)
 {

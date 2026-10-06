@@ -130,7 +130,7 @@ macro freef($MainType, $ArrayType, LoxVM *vm, void *ptr, sz size)
     @param n : "The value to get the next power of two for."
 
     @require types::is_int($Typeof(n)) : "Input value must be an integer type."
-    @require n >= 0 : "Input value must be non-negative."
+    @require [n] n >= 0 : "Input value must be non-negative."
 *>
 macro next_power_of_two(n)
 {
@@ -163,8 +163,8 @@ macro next_power_of_two(n)
     @param old_size : "The current size of the memory block (in number of bytes.)"
     @param new_size : "The new size for the memory block (in number of bytes.)"
 
-    @require old_size >= 0 : "A memory block cannot have a negative size."
-    @require new_size >= 0 : "Cannot allocate a negative number of bytes."
+    @require [old_size] old_size >= 0 : "A memory block cannot have a negative size."
+    @require [new_size] new_size >= 0 : "Cannot allocate a negative number of bytes."
     @require vm.config.realloc != null : "VM must be configured and initialized."
 *>
 fn void *reallocate(LoxVM *vm, void *ptr, sz old_size, sz new_size)
@@ -182,7 +182,7 @@ fn void *reallocate(LoxVM *vm, void *ptr, sz old_size, sz new_size)
     @param [inout] ptr : "A pointer to memory to reallocate."
     @param size : "The size of the memory block (in number of bytes.)"
 
-    @require size >= 0 : "Cannot allocate a negative number of bytes."
+    @require [size] size >= 0 : "Cannot allocate a negative number of bytes."
 *>
 fn void *__reallocate(void *ptr, sz size) @private
 {
