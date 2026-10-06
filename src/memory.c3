@@ -124,6 +124,34 @@ macro freef($MainType, $ArrayType, LoxVM *vm, void *ptr, sz size)
     );
 }
 
+<*
+    Returns the next power of two that is greater than or equal to [n].
+
+    @param n : "The value to get the next power of two for."
+
+    @require types::is_int($Typeof(n)) : "Input value must be an integer type."
+    @require n >= 0 : "Input value must be non-negative."
+*>
+macro next_power_of_two(n)
+{
+    var $Type = $Typeof(n);
+
+    if (n <= 1) return ($Type)1;
+    if (n == 2) return ($Type)2;
+
+    $Type r = --n;
+
+    r |= r >> 1;
+    r |= r >> 2;
+    r |= r >> 4;
+
+    $if (@sizeof(n) >= 2): r |= r >> 8; $endif
+    $if (@sizeof(n) >= 4): r |= r >> 16; $endif
+    $if (@sizeof(n) >= 8): r |= r >> 32; $endif
+
+    return ++r;
+}
+
 //------------------------------------------------------------------------------
 
 <*
