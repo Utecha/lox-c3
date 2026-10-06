@@ -1,0 +1,67 @@
+// This test defines all of the tokens in the order that they exist in the
+// `TokenType` enum, with the exception of the `ERROR` token.
+
+// Operational Delimiters
+(
+)
+{
+}
+[
+]
+,
+.
+:
+?
+;
+
+// Logical Operators
+||
+&&
+!
+
+// Equality
+==
+!=
+
+// Comparison
+>
+>=
+<
+<=
+
+// Arithmetic Term
+-
++
+
+// Arithmetic Factor
+%
+/
+*
+
+// Literals
+my_var
+3.14159e0
+"Hello, World!"
+
+// Keywords
+and
+break
+class
+const
+continue
+else
+false
+for
+fun
+if
+nil
+not
+or
+print
+return
+static
+super
+this
+true
+var
+while

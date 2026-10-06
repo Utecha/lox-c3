@@ -75,6 +75,7 @@ fn void free(LoxVM *vm)
     if (!vm) return;
 
     value::free_objects(vm);
+    memory::free(Value, vm, vm.stack, vm.stack_capacity);
     memory::free(LoxVM, vm, vm);
 }
 
@@ -98,13 +99,9 @@ fn void init_config(
 <*
     @param [&inout] vm : "A pointer to a LoxVM."
 *>
-fn void? interpret(LoxVM *vm, ObjFun *fun)
+fn void? interpret(LoxVM *vm, char *source)
 {
-    ensure_stack(vm, fun.constants.len() + 1);
-
-    vm.fun = fun;
-    vm.ip = fun.code.data;
-    return execute(vm)!;
+    compiler::compile(vm, source);
 }
 
 //------------------------------------------------------------------------------
