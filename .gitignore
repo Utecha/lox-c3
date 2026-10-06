@@ -1,12 +1,9 @@
-# Build Directory
-# The directory has to stay, but everything in it can go (except the .gitkeep)
+# Build Files
 build/*
 !build/.gitkeep
 
-# Scratch files
+# Scratch Files
 scratch*
 
-# Other stuff
-resources/backup
-resources/testing
-Issues.md
+# Other
+resources/previous/*

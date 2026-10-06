@@ -1,7 +1,7 @@
 {
   "langrev": "1",
   "authors": [ "Chandler Warner <cwarneratwork@proton.me>" ],
-  "version": "0.2.0",
+  "version": "0.0.1",
   "warnings": [ "no-unused" ],
   "dependency-search-paths": [ "lib" ],
   "dependencies": [],
@@ -9,14 +9,22 @@
   "sources": [ "src/**" ],
   "test-sources": [ "test/**" ],
   "cpu": "generic",
-  "safe": true,
   "targets": {
-    "release": {
+    "debug-no-nan-tagging": {
       "name": "lox",
       "type": "executable",
-      "features": [ "NAN_TAGGING" ],
+      "features": [ "DEBUG" ],
+      "opt": "O0",
+      "debug-info": "full",
+      "safe": true
+    },
+    "release-no-nan-tagging": {
+      "name": "lox",
+      "type": "executable",
+      "features": [ ],
       "opt": "O3",
-      "debug-info": "none",
+      "debug-info": "line-tables",
+      "safe": false
     },
     "debug": {
       "name": "lox",
@@ -24,20 +32,15 @@
       "features": [ "DEBUG", "NAN_TAGGING" ],
       "opt": "O0",
       "debug-info": "full",
+      "safe": true
     },
-    "release-no-nan-tagging": {
+    "release": {
       "name": "lox",
       "type": "executable",
-      "features": [ ],
+      "features": [ "NAN_TAGGING" ],
       "opt": "O3",
-      "debug-info": "none",
-    },
-    "debug-no-nan-tagging": {
-      "name": "lox",
-      "type": "executable",
-      "features": [ "DEBUG" ],
-      "opt": "O0",
-      "debug-info": "full",
-    },
-  },
+      "debug-info": "line-tables",
+      "safe": false
+    }
+  }
 }
