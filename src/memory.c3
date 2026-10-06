@@ -165,11 +165,12 @@ macro next_power_of_two(n)
 
     @require old_size >= 0 : "A memory block cannot have a negative size."
     @require new_size >= 0 : "Cannot allocate a negative number of bytes."
+    @require vm.config.realloc != null : "VM must be configured and initialized."
 *>
 fn void *reallocate(LoxVM *vm, void *ptr, sz old_size, sz new_size)
 {
     vm.bytes_allocated += new_size - old_size;
-    return vm.realloc(ptr, new_size);
+    return vm.config.realloc(ptr, new_size);
 }
 
 //------------------------------------------------------------------------------

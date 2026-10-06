@@ -1,0 +1,90 @@
+module lox::debug @feat(DEBUG);
+import lox::opcode;
+import lox::value;
+import std::io @norecurse;
+
+//------------------------------------------------------------------------------
+
+// Configurable flags for enabling/disabling certain internal debugging features.
+const bool DUMP_CODE = true;
+
+//------------------------------------------------------------------------------
+
+<*
+    Disassembles the bytecode for an entire [fun] object.
+
+    @param [&inout] fun : "A pointer to an ObjFun."
+    @param name : "The name of the function."
+*>
+fn void disassemble(ObjFun *fun, String name)
+{
+    io::printfn("[ %s ]", name);
+
+    for (sz offset = 0; offset < fun.code.len();)
+    {
+        offset = dump_instruction(fun, offset);
+    }
+
+    io::printn();
+}
+
+<*
+    Dumps a single instruction of bytecode found in [fun] at [offset].
+
+    @param [&inout] fun : "A pointer to an ObjFun."
+    @param offset : "The bytecode offset of the instruction."
+*>
+fn sz dump_instruction(ObjFun *fun, sz offset)
+{
+    OpCode instruction = (OpCode)fun.code[offset];
+    int line = value::get_line(fun, offset);
+
+    var read_short = fn ushort (ObjFun *fun, sz offset) {
+        return (ushort)((fun.code[offset - 2] << 8) | fun.code[offset - 1]);
+    };
+
+    if (offset > 0 && line == value::get_line(fun, offset - 1))
+    {
+        io::print("     ");
+    }
+    else
+    {
+        io::printf("%4d:", line);
+    }
+
+    io::printf(" %04d  ", offset);
+    switch (instruction)
+    {
+        case NIL:
+        case FALSE:
+        case TRUE:
+        case POP:
+        case NEGATE:
+        case NOT:
+        case ADD:
+        case SUB:
+        case MUL:
+        case DIV:
+        case MOD:
+        case GREATER:
+        case LESS:
+        case EQUAL:
+        case RETURN:
+            io::printn(instruction.name);
+            return offset + 1;
+
+        case CONSTANT:
+            offset += 3;
+
+            ushort constant = read_short(fun, offset);
+            io::printf("%-16s %5d '", instruction.name, constant);
+            value::print(fun.constants[constant]);
+            io::printn("'");
+
+            return offset;
+
+        default:
+            io::printfn("Missing Instruction: '%s'", instruction.name);
+            return offset + 1;
+    }
+}
