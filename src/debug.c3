@@ -10,7 +10,7 @@ import std::io @norecurse;
 // Configurable flags for enabling/disabling certain internal debugging features.
 const bool DUMP_CODE        = false;
 const bool DUMP_STACK       = false;
-const bool DUMP_TOKENS      = true;
+const bool DUMP_TOKENS      = false;
 const bool TRACE_EXECUTION  = false;
 
 //------------------------------------------------------------------------------
@@ -46,10 +46,6 @@ fn sz dump_instruction(ObjFun *fun, sz offset)
     OpCode instruction = (OpCode)fun.code[offset];
     int line = value::get_line(fun, offset);
 
-    var read_short = fn ushort (ObjFun *fun, sz offset) {
-        return (ushort)((fun.code[offset - 2] << 8) | fun.code[offset - 1]);
-    };
-
     if (offset > 0 && line == value::get_line(fun, offset - 1))
     {
         io::print("     ");
@@ -77,21 +73,22 @@ fn sz dump_instruction(ObjFun *fun, sz offset)
         case LESS:
         case EQUAL:
         case RETURN:
-            io::printn(instruction.name);
-            return offset + 1;
+            return simple_instruction(instruction.name, offset);
 
         case CONSTANT:
-            offset += 3;
+            return constant_instruction(instruction.name, fun, offset);
 
-            ushort constant = read_short(fun, offset);
-            io::printf("%-16s %5d '", instruction.name, constant);
-            value::print(fun.constants[constant]);
-            io::printn("'");
+        case JUMP:
+        case JUMP_IF:
+        case AND:
+        case OR:
+            return jump_instruction(instruction.name, fun, 1, offset);
 
-            return offset;
+        case LOOP:
+            return jump_instruction(instruction.name, fun, -1, offset);
 
         default:
-            io::printfn("Missing Instruction: '%s'", instruction.name);
+            io::printfn("Missing: '%s'", instruction.name);
             return offset + 1;
     }
 }
@@ -127,6 +124,38 @@ fn void dump_tokens(LoxLexer *l)
         Token t = lexer::next(l);
         io::print(t);
 
-        if (t.type == EOF) return;
+        if (t.type == EOF) break;
     }
+
+    io::printn();
+}
+
+//------------------------------------------------------------------------------
+
+fn sz constant_instruction(String name, ObjFun *fun, sz offset) @inline @local
+{
+    ushort constant = (ushort)(fun.code[offset + 1] << 8);
+    constant |= (ushort)fun.code[offset + 2];
+
+    io::printf("%-16s %5d '", name, constant);
+    value::print(fun.constants[constant]);
+    io::printn("'");
+
+    return offset + 3;
+}
+
+fn sz jump_instruction(String name, ObjFun *fun, sz sign, sz offset) @inline @local
+{
+    ushort jump = (ushort)(fun.code[offset + 1] << 8);
+    jump |= (ushort)fun.code[offset + 2];
+
+    io::printfn("%-16s %5d -> %d", name, jump, offset + 3 + sign * jump);
+
+    return offset + 3;
+}
+
+fn sz simple_instruction(String name, sz offset) @inline @local
+{
+    io::printn(name);
+    return offset + 1;
 }

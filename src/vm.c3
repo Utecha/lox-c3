@@ -1,4 +1,5 @@
 module lox;
+import lox::compiler @public;
 import lox::memory @public;
 import std::io @norecurse;
 
@@ -24,6 +25,7 @@ struct LoxVM
     sz stack_capacity;
     Obj *objects;
     sz bytes_allocated;
+    Compiler *compiler;
     LoxConfig config;
 }
 
@@ -51,6 +53,7 @@ fn LoxVM *new(LoxConfig *config = null)
     vm.stack_capacity = 0;
     vm.objects = null;
     vm.bytes_allocated = 0;
+    vm.compiler = null;
 
     if (config)
     {
@@ -101,7 +104,14 @@ fn void init_config(
 *>
 fn void? interpret(LoxVM *vm, char *source)
 {
-    compiler::compile(vm, source);
+    ObjFun *fun = compiler::compile(vm, source);
+    if (!fun) return COMPILE_ERROR~;
+
+    vm.fun = fun;
+    vm.ip = fun.code.data;
+    ensure_stack(vm, fun.max_slots + 1);
+
+    return execute(vm)!;
 }
 
 //------------------------------------------------------------------------------
@@ -334,32 +344,37 @@ fn void? execute(LoxVM *vm) @local
                 Value a = stack_pop(vm);
                 stack_push(vm, value::make_bool(value::equals(a, b)));
 
+            case JUMP:
+                ushort offset = read_short(vm);
+                vm.ip += offset;
+
+            case JUMP_IF:
+                ushort offset = read_short(vm);
+                Value condition = stack_pop(vm);
+
+                if (is_falsey(condition)) vm.ip += offset;
+
+            case LOOP:
+                ushort offset = read_short(vm);
+                vm.ip -= offset;
+
             case AND:
                 ushort offset = read_short(vm);
                 Value condition = stack_peek(vm);
 
                 if (is_falsey(condition))
-                {
-                    vm.ip += offset;
-                }
+                    { vm.ip += offset; }
                 else
-                {
-                    stack_pop(vm);
-                }
-
+                    { stack_pop(vm); }
 
             case OR:
                 ushort offset = read_short(vm);
                 Value condition = stack_peek(vm);
 
                 if (is_falsey(condition))
-                {
-                    stack_pop(vm);
-                }
+                    { stack_pop(vm); }
                 else
-                {
-                    vm.ip += offset;
-                }
+                    { vm.ip += offset; }
 
             case RETURN:
                 value::print(stack_pop(vm));

@@ -71,3 +71,32 @@ rather than a pointer to a function.
 ### Fixes
 
 - Fixed memory leak where the VM's value stack was not freed along with the VM.
+
+## Lox Version 0.0.5
+
+### New Features
+
+- Implemented the complete `lox::compiler` module. This means there is now a
+complete compiler to interpreter pipeline.
+- Jump instructions are implemented early. The `LOOP` instruction is not
+actually compiled yet. It is only supported in the VM.
+- Conditional ternary (?:) operator implemented in full, making use
+of the prevously mentioned jump instructions.
+- Compiler can now view the next token coming up, rather than just the
+current and previous tokens.
+- Comparison & Equality operations are implemented early.
+- Compiler tracks the expected number of stack slots a function will
+use and stores it in the function. This is used to determine how large
+of a stack to allocate.
+
+### Fixes
+
+- Fixed bug causing number Values to be incorrectly created with the NaN tagging
+optimization enabled.
+
+### Other
+
+- Removed temporary functions from `lox::value`.
+- Moved to using separate functions for the bytecode debug dumping
+per instruction type.
+- Updated documentation accessible via `docs/docs.html`.

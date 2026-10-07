@@ -34,6 +34,7 @@ struct ObjFun
     ByteArray code;
     LineArray lines;
     ValueArray constants;
+    sz max_slots;
 }
 
 //------------------------------------------------------------------------------
@@ -191,34 +192,6 @@ fn int get_line(ObjFun *fun, sz offset)
     return -1;
 }
 
-/*** TEMPORARY ***/
-
-fn void write_byte(LoxVM *vm, ObjFun *fun, char byte, int line)
-{
-    if (fun.code.len() == 0 || fun.lines[fun.lines.len() - 1].n != line)
-    {
-        fun.lines.append(
-            vm,
-            (Line) { .n = line, .offset = fun.code.len() }
-        );
-    }
-
-    fun.code.append(vm, byte);
-}
-
-fn void write_code(LoxVM *vm, ObjFun *fun, OpCode instruction, int line)
-{
-    write_byte(vm, fun, instruction.ordinal, line);
-}
-
-fn sz add_constant(LoxVM *vm, ObjFun *fun, Value value)
-{
-    fun.constants.append(vm, value);
-    return fun.constants.len() - 1;
-}
-
-/*** END TEMPORARY ***/
-
 //------------------------------------------------------------------------------
 
 <*
@@ -230,7 +203,7 @@ fn sz add_constant(LoxVM *vm, ObjFun *fun, Value value)
 fn Value number_to_value(double number) @inline @local
 {
     $if $feat(NAN_TAGGING):
-        return bitcast(double, Value);
+        return bitcast(number, Value);
     $else
         return (Value) { NUMBER, { .number = number } };
     $endif

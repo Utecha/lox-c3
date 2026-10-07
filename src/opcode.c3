@@ -19,10 +19,13 @@ enum OpCode : char (String name, int stack_effect)
     GREATER     { "Greater", 1 },
     LESS        { "Less", 1 },
     EQUAL       { "Equal", 1 },
-    AND         { "Logical AND", -1 },
-    OR          { "Logical OR", -1 },
     RETURN      { "Return", 0 },
 
     // [3B] Instructions
-    CONSTANT   { "Constant", 1 },
+    CONSTANT    { "Constant", 1 },
+    JUMP        { "Jump", 0 },
+    JUMP_IF     { "Jump If", -1 },
+    LOOP        { "Loop", 0 },
+    AND         { "Logical AND", -1 },
+    OR          { "Logical OR", -1 },
 }
