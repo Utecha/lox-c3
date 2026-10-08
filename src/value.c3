@@ -19,6 +19,7 @@ alias ValueArray = LoxArray { Value };
 enum ObjType : int
 {
     FUNCTION,
+    STRING
 }
 
 <*
@@ -57,6 +58,17 @@ struct ObjFun
     sz max_slots;
 }
 
+<*
+    Defines a string object.
+*>
+struct ObjString
+{
+    inline Obj obj;
+    uint hash;
+    sz length;
+    char[*] data;
+}
+
 //------------------------------------------------------------------------------
 
 <*
@@ -64,35 +76,58 @@ struct ObjFun
 
     @param boolean : "The boolean value to promote."
 *>
-macro Value make_bool(bool boolean)     => boolean ? TRUE : FALSE;
+macro Value make_bool(bool boolean) => boolean ? TRUE : FALSE;
 
 <*
     Promotes a primitive number to a full Lox Value.
 
     @param number : "The number value to promote."
 *>
-macro Value make_num(double number)     => number_to_value(number);
+macro Value make_num(double number) => number_to_value(number);
 
 <*
     Promotes a primitive Obj to a full Lox Value.
 
     @param object : "The object to promote."
 *>
-macro Value make_obj(Obj *object)       => object_to_value(object);
+macro Value make_obj(Obj *object) => object_to_value(object);
 
 <*
     Demotes the given [value] into a function object.
 
     @param value : "The value to demote."
 *>
-macro ObjFun *as_function(Value value)  => (ObjFun *)as_obj(value);
+macro ObjFun *as_function(Value value) => (ObjFun *)as_obj(value);
+
+<*
+    Demotes the given [value] into a string object.
+
+    @param value : "The value to demote."
+*>
+macro ObjString *as_string(Value value) => (ObjString *)as_obj(value);
+
+<*
+    Returns the underlying String of a given [value] that's expected to be a
+    pointer to an ObjString.
+
+    @param value : "The value to obtain the String from."
+*>
+macro String as_c3string(Value value)
+    => (String)as_string(value).data[:as_string(value).length];
 
 <*
     Returns whether the given [value] is a function object.
 
     @param value : "The value to type check."
 *>
-macro bool is_function(Value value)     => is_obj_type(value, FUNCTION);
+macro bool is_function(Value value) => is_obj_type(value, FUNCTION);
+
+<*
+    Returns whether the given [value] is a string object.
+
+    @param value : "The value to type check."
+*>
+macro bool is_string(Value value) => is_obj_type(value, STRING);
 
 //------------------------------------------------------------------------------
 
@@ -162,7 +197,12 @@ fn bool equals(Value a, Value b)
                 return as_num(a) == as_num(b);
 
             case OBJECT:
-                return false; // Not yet implemented
+                ObjString *str_a = as_string(a);
+                ObjString *str_b = as_string(b);
+
+                return str_a.length == str_b.length &&
+                    str_a.hash == str_b.hash &&
+                    mem::equals(&str_a.data[0], &str_b.data[0], str_a.length);
 
             case UNDEFINED:
                 unreachable();
@@ -238,6 +278,62 @@ fn int get_line(ObjFun *fun, sz offset)
     return -1;
 }
 
+<*
+    Returns the promoted Value for a new ObjString of [length] characters.
+
+    @param [&inout] vm : "A pointer to a LoxVM."
+    @param [inout] data : "A pointer to the beginning of the string data."
+    @param length : "The length of the string."
+
+    @require length == 0 || data != null : "Unexpected null string."
+*>
+fn Value new_string_length(LoxVM *vm, char *data, sz length)
+{
+    ObjString *string = allocate_string(vm, length);
+
+    // Copy the string, if given one.
+    if (length > 0 && data != null)
+        { mem::copy(&string.data[0], data, length); }
+
+    hash_string(string);
+    return make_obj(string);
+}
+
+<*
+    Returns the promoted Value for a new ObjString.
+
+    @param [&inout] vm : "A pointer to a LoxVM."
+    @param [inout] data : "A pointer to the beginning of the string data."
+*>
+fn Value new_string(LoxVM *vm, char *data)
+{
+    if (!data) return new_string_length(vm, data, 0);
+    return new_string_length(vm, data, ((ZString)data).len());
+}
+
+<*
+    Pops two string objects off the top of the stack, creates a new one
+    to concatenate the strings, then pushes the result onto the stack.
+
+    @param [&inout] vm : "A pointer to a LoxVM."
+    @param a : "The starting string Value."
+    @param b : "The ending string Value."
+*>
+fn Value concatenate(LoxVM *vm, Value a, Value b)
+{
+    ObjString *str_a = value::as_string(a);
+    ObjString *str_b = value::as_string(b);
+
+    sz length = str_a.length + str_b.length;
+    ObjString *result = allocate_string(vm, length);
+
+    mem::copy(&result.data[0], &str_a.data[0], str_a.length);
+    mem::copy(&result.data[str_a.length], &str_b.data[0], str_b.length);
+
+    hash_string(result);
+    return make_obj(result);
+}
+
 //------------------------------------------------------------------------------
 
 <*
@@ -286,6 +382,10 @@ fn void free_obj(LoxVM *vm, Obj *obj) @local
             fun.lines.clear(vm);
             fun.code.clear(vm);
             memory::free(ObjFun, vm, obj);
+
+        case STRING:
+            ObjString *string = (ObjString *)obj;
+            memory::freef(ObjString, char, vm, obj, string.length + 1);
     }
 }
 
@@ -302,6 +402,9 @@ fn void print_obj(Value value) @local
     {
         case FUNCTION:
             return; // Not yet implemented
+
+        case STRING:
+            io::print(as_c3string(value));
     }
 }
 
@@ -328,6 +431,56 @@ fn void init_obj(LoxVM *vm, Obj *obj, ObjType type) @inline @local
     obj.type = type;
     obj.next = vm.objects;
     vm.objects = obj;
+}
+
+<*
+    Returns a newly allocated ObjString of [length].
+
+    The [length] value is the length of the actual string itself, not
+    including the null byte.
+
+    @param [&inout] vm : "A pointer to a LoxVM."
+    @param length : "The length of the string."
+*>
+fn ObjString *allocate_string(LoxVM *vm, sz length) @local
+{
+    ObjString *string = memory::allocf(ObjString, char, vm, length + 1);
+    init_obj(vm, string, STRING);
+
+    string.hash = 0;
+    string.length = length;
+    string.data[length] = '\0';
+
+    return string;
+}
+
+<*
+    Hashes the given string [data] using the FNV-1a hashing algorithm.
+
+    @param [&inout] data : "The string data to hash."
+    @param length : "The length of the string."
+*>
+fn uint hash_cstring(char *data, sz length) @local
+{
+    uint hash = 2166136261u;
+
+    for (uint i = 0; i < length; i++)
+    {
+        hash ^= data[i];
+        hash *= 16777619;
+    }
+
+    return hash;
+}
+
+<*
+    Calculates and sets the hash for the given [string].
+
+    @param [&inout] string : "The string to hash."
+*>
+fn void hash_string(ObjString *string) @local
+{
+    string.hash = hash_cstring(&string.data[0], string.length);
 }
 
 //==============================================================================

@@ -129,3 +129,13 @@ the data doesn't fail to reallocate.
 - Fixed bug in runtime error reporting where the line value was missing from
 the `io::printfn` call.
 - Shortened the target names in `project.json` for the non-NaN tagged versions.
+
+## Lox Version 0.0.7
+
+### New Features
+
+- Implemented string objects via the type `ObjString`. Strings are allocated
+with flexible array members, which increases performance when allocating and
+accessing a string as compared to the original implementation.
+- Implemented the string hashing functions early.
+- Added support for string concatenation.

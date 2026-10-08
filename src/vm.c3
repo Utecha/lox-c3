@@ -340,7 +340,27 @@ fn void? execute(LoxVM *vm) @local
                 stack_push(vm, value::make_bool(is_falsey(stack_pop(vm))));
 
             case ADD:
-                @binary_op(vm, value::make_num, math::add)!;
+                if (value::is_string(stack_peek(vm)) &&
+                    value::is_string(stack_peek(vm, 1)))
+                {
+                    Value b = stack_pop(vm);
+                    Value a = stack_pop(vm);
+                    stack_push(vm, value::concatenate(vm, a, b));
+                }
+                else if (value::is_num(stack_peek(vm)) &&
+                         value::is_num(stack_peek(vm, 1)))
+                {
+                    double b = value::as_num(stack_pop(vm));
+                    double a = value::as_num(stack_pop(vm));
+                    stack_push(vm, value::make_num(a + b));
+                }
+                else
+                {
+                    return rt_error(
+                        vm,
+                        "Binary (addition) operands must be numbers or strings."
+                    )~;
+                }
 
             case SUB:
                 @binary_op(vm, value::make_num, math::sub)!;

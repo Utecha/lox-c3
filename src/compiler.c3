@@ -644,7 +644,14 @@ fn void literal(Compiler *cc, bool assignable) @local
                 { emit_constant(cc, value::make_num(value)); }
 
         case STRING:
-            break; // Not yet implemented
+            emit_constant(
+                cc,
+                value::new_string_length(
+                    cc.parser.vm,
+                    &cc.parser.previous.lexeme[1],
+                    cc.parser.previous.length - 2
+                )
+            );
 
         case NIL:
             emit_opcode(cc, NIL);
