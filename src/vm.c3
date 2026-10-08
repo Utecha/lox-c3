@@ -5,17 +5,24 @@ import std::io @norecurse;
 
 //------------------------------------------------------------------------------
 
+<* The possible excuses as to why execution has failed. *>
 excuse
 {
     COMPILE_ERROR,
     RUNTIME_ERROR
 }
 
+<* The configuration data for a LoxVM. *>
 struct LoxConfig
 {
     LoxReallocFn reallocate;
 }
 
+<*
+    The virtual machine for the Lox language.
+
+    *All* state during execution is managed by a LoxVM instance.
+*>
 struct LoxVM
 {
     ObjFun *fun;
@@ -69,7 +76,7 @@ fn LoxVM *new(LoxConfig *config = null)
 }
 
 <*
-    Releases the memory held by [vm], including itself.
+    Releases all of the memory managed by the VM, including itself.
 
     @param [&inout] vm : "A pointer to a LoxVM to free."
 *>
@@ -83,8 +90,10 @@ fn void free(LoxVM *vm)
 }
 
 <*
-    Initializes [config] with the remaining arguments (if applicable).
-    Otherwise, it is initialized with default values.
+    Initializes the given [config] with any remaining arguments.
+
+    The remaining arguments are not required as they have default values
+    associated with them.
 
     @param [&inout] config : "A pointer to a LoxConfig to initialize."
     @param reallocate : "A pointer to a function for reallocating memory."
@@ -101,6 +110,7 @@ fn void init_config(
 
 <*
     @param [&inout] vm : "A pointer to a LoxVM."
+    @param [inout] source : "A pointer to the beginning of the source code."
 *>
 fn void? interpret(LoxVM *vm, char *source)
 {
@@ -117,7 +127,7 @@ fn void? interpret(LoxVM *vm, char *source)
 //------------------------------------------------------------------------------
 
 <*
-    Reads a byte from the [vm]'s instruction pointer.
+    Reads a byte from the VM's instruction pointer.
 
     @param [&inout] vm : "A pointer to a LoxVM."
 *>
@@ -127,7 +137,7 @@ macro char read_byte(LoxVM *vm) @local
 }
 
 <*
-    Reads through 2 bytes from the [vm]'s instruction pointer.
+    Reads through 2 bytes from the VM's instruction pointer.
 
     @param [&inout] vm : "A pointer to a LoxVM."
 *>
@@ -148,7 +158,7 @@ macro Value read_constant(LoxVM *vm) @local
 }
 
 <*
-    Pushes [value] onto the top of the stack.
+    Pushes the given [value] onto the top of the stack.
 
     @param [&inout] vm : "A pointer to a LoxVM."
 *>
@@ -158,7 +168,7 @@ macro void stack_push(LoxVM *vm, Value value) @local
 }
 
 <*
-    Pops the Value from the top of the stack.
+    Pops a value from the top of the stack.
 
     @param [&inout] vm : "A pointer to a LoxVM."
 *>
@@ -181,7 +191,8 @@ macro Value stack_peek(LoxVM *vm, int distance = 0) @local
 }
 
 <*
-    Resets the stack pointer to the beginning of the stack.
+    Resets the pointer to the top of the stack back to the beginning of the
+    stack.
 
     @param [&inout] vm : "A pointer to a LoxVM."
 *>
@@ -192,10 +203,13 @@ macro void stack_reset(LoxVM *vm) @local
 
 <*
     Performs a binary operation on the top two values on the stack.
-    If one or both values are not a numeric value, a runtime error
-    excuse is returned.
+
+    If one or both values are not a numeric value, a runtime error excuse
+    is returned.
 
     @param [&inout] vm : "A pointer to a LoxVM."
+    @param #valtype : "The conversion macro for the appropriate Value type."
+    @param #op : "The macro for performing the binary operation."
 *>
 macro void? @binary_op(LoxVM *vm, #valtype, #op) @local
 {
@@ -213,10 +227,11 @@ macro void? @binary_op(LoxVM *vm, #valtype, #op) @local
 }
 
 <*
-    Ensures that the stack has at least [needed] slots available. If the
-    pointer is moved when resizing, the stack top is updated to point to
-    the same relative distance into the new stack as it was in the old
-    one.
+    Ensures that the stack has at least the [needed] slots available.
+
+    If the pointer is moved when resizing, the stack top is updated to
+    point to the same relative distance into the new stack as it was in
+    the old one.
 
     @param [&inout] vm : "A pointer to a LoxVM."
     @param needed : "The expected number of slots needed."
@@ -231,17 +246,23 @@ fn void ensure_stack(LoxVM *vm, sz needed) @local
     vm.stack = memory::realloc(Value, vm, vm.stack, vm.stack_capacity, capacity);
     vm.stack_capacity = capacity;
 
+    if (!old_stack)
+    {
+        stack_reset(vm);
+        return;
+    }
+
     // Recalculate any pointers that still point into the old stack to the same
     // relative distance in the new stack.
     if (vm.stack != old_stack)
     {
-        vm.stack_top = vm.stack - (vm.stack_top - old_stack);
+        vm.stack_top = vm.stack + (vm.stack_top - old_stack);
     }
 }
 
 <*
-    Reports a runtime error and returns the excuse for exiting the
-    interpreter loop.
+    Reports a runtime error and returns the excuse for exiting the interpreter
+    loop.
 
     @param [&inout] vm : "A pointer to a LoxVM."
     @param fmt : "The format string for the error message."
@@ -249,13 +270,13 @@ fn void ensure_stack(LoxVM *vm, sz needed) @local
 *>
 fn fault rt_error(LoxVM *vm, String fmt, args...) @local
 {
-    io::eprintf("[ Runtime ] ");
+    io::eprintf("[ Lox Runtime ] ");
     io::eprintfn(fmt, ...args);
 
     sz instruction = vm.ip - vm.fun.code.data - 1;
     int line = value::get_line(vm.fun, instruction);
 
-    io::eprintfn("{ ln %d } in script");
+    io::eprintfn("{ ln %d } in script", line);
     stack_reset(vm);
 
     return RUNTIME_ERROR;
@@ -272,7 +293,7 @@ fn bool is_falsey(Value value) @local
 }
 
 <*
-    Executes the function held by [vm] through the bytecode interpreter.
+    Interprets and executes the current function's bytecode.
 
     @param [&inout] vm : "A pointer to a LoxVM."
 *>

@@ -6,28 +6,48 @@ import std::io @norecurse;
 
 //------------------------------------------------------------------------------
 
-// Defines the specific array types needed for function objects.
+<* A type alias for a VM-managed array of bytes. *>
 alias ByteArray = LoxArray { char };
+
+<* A type alias for a VM-managed array of Line data. *>
 alias LineArray = LoxArray { Line };
+
+<* A type alias for a VM-managed array of Values. *>
 alias ValueArray = LoxArray { Value };
 
+<* Defines the supported types of Objects for the Lox language. *>
 enum ObjType : int
 {
     FUNCTION,
 }
 
+<*
+    The "base class" of all Objects.
+
+    Each specific Object type has an Obj as its first member, inlined.
+*>
 struct Obj
 {
     ObjType type;
     Obj *next;
 }
 
+<*
+    Binds a bytecode offset to a line of user source code for run-length
+    encoding line information.
+*>
 struct Line
 {
     int n;
     sz offset;
 }
 
+<*
+    Defines a function object; the main construct behind the language itself.
+
+    A script is just an implicit "main" function object that closes over all
+    other definitions.
+*>
 struct ObjFun
 {
     inline Obj obj;
@@ -39,19 +59,45 @@ struct ObjFun
 
 //------------------------------------------------------------------------------
 
-// Primitive -> Value
+<*
+    Promotes a primitive boolean to a full Lox Value.
+
+    @param boolean : "The boolean value to promote."
+*>
 macro Value make_bool(bool boolean)     => boolean ? TRUE : FALSE;
-macro Value make_num(double number)     => number_to_value(number);
-macro Value make_obj(Obj *object)       => object_to_value(object);
-
-// Value -> Primitive
-macro ObjFun *as_function(Value value)  => (ObjFun *)as_obj(value);
-
-// Value type checking
-macro bool is_function(Value value)     => is_obj_type(value, FUNCTION);
 
 <*
-    Prints [value] to the standard output.
+    Promotes a primitive number to a full Lox Value.
+
+    @param number : "The number value to promote."
+*>
+macro Value make_num(double number)     => number_to_value(number);
+
+<*
+    Promotes a primitive Obj to a full Lox Value.
+
+    @param object : "The object to promote."
+*>
+macro Value make_obj(Obj *object)       => object_to_value(object);
+
+<*
+    Demotes the given [value] into a function object.
+
+    @param value : "The value to demote."
+*>
+macro ObjFun *as_function(Value value)  => (ObjFun *)as_obj(value);
+
+<*
+    Returns whether the given [value] is a function object.
+
+    @param value : "The value to type check."
+*>
+macro bool is_function(Value value)     => is_obj_type(value, FUNCTION);
+
+//------------------------------------------------------------------------------
+
+<*
+    Prints the given [value] to stdout.
 
     @param value : "The value to print."
 *>
@@ -158,8 +204,8 @@ fn ObjFun *new_function(LoxVM *vm)
 }
 
 <*
-    Returns the corresponding line number for the given [offset] in the
-    bytecode of [fun].
+    Returns the corresponding line number for the given [offset] of the given
+    functions bytecode.
 
     @param [&inout] fun : "A pointer to an ObjFun."
     @param offset : "The bytecode offset corresponding to a line number."
@@ -244,7 +290,7 @@ fn void free_obj(LoxVM *vm, Obj *obj) @local
 }
 
 <*
-    Prints [value], which is expected to be an Obj type, to standard output.
+    Prints the given [value], which is expected to be an Obj type, to stdout.
 
     @param value : "The object value to print."
 
@@ -260,7 +306,7 @@ fn void print_obj(Value value) @local
 }
 
 <*
-    Returns whether [value] is an Obj of [type].
+    Returns whether the given [value] is an Obj of the given [type].
 
     @param value : "The value to check."
     @param type : "The type to check against."
@@ -271,7 +317,7 @@ fn bool is_obj_type(Value value, ObjType type) @inline @local
 }
 
 <*
-    Initializes [obj] and adds it to the linked list of objects held by [vm].
+    Initializes the given [obj] and adds it to the linked list of objects.
 
     @param [&inout] vm : "A pointer to a LoxVM."
     @param [&inout] obj : "A pointer to an Obj."
@@ -289,6 +335,7 @@ module lox::value @feat(!NAN_TAGGING);
 
 //------------------------------------------------------------------------------
 
+<* Defines the supported types of Values. *>
 enum ValueType : int
 {
     FALSE,
@@ -299,6 +346,7 @@ enum ValueType : int
     UNDEFINED
 }
 
+<* The traditional tagged union which represents a dynamic Value. *>
 struct Value
 {
     ValueType type;
@@ -311,25 +359,81 @@ struct Value
 
 //------------------------------------------------------------------------------
 
-// Singleton Value constants.
+<* The traditional boolean singleton Value for 'false'. *>
 const Value FALSE       = { FALSE, { 0 } };
+
+<* The traditional singleton Value for 'nil'. *>
 const Value NIL         = { NIL, { 0 } };
+
+<* The traditional boolean singleton Value for 'true'. *>
 const Value TRUE        = { TRUE, { 0 } };
+
+<* The traditional singleton Value for an undefined Value. *>
 const Value UNDEFINED   = { UNDEFINED, { 0 } };
 
 //------------------------------------------------------------------------------
 
-// Value -> Primitive
+<*
+    Demotes the given [value] back into a primitive bool.
+
+    @param value : "The value to demote."
+*>
 macro bool as_bool(Value value)     => value.type == TRUE;
+
+<*
+    Demotes the given [value] back into a primitive number.
+
+    @param value : "The value to demote."
+*>
 macro double as_num(Value value)    => value.as.number;
+
+<*
+    Demotes the given [value] back into a primitive Obj.
+
+    @param value : "The value to demote."
+*>
 macro Obj *as_obj(Value value)      => value.as.obj;
 
-// Value type checking.
+<*
+    Returns whether the given [value] is a boolean type.
+
+    @param value : "The value to type check."
+*>
 macro bool is_bool(Value value)     => value.type == FALSE || value.type == TRUE;
+
+<*
+    Returns whether the given [value] is a false boolean type.
+
+    @param value : "The value to type check."
+*>
 macro bool is_false(Value value)    => value.type == FALSE;
+
+<*
+    Returns whether the given [value] is a nil type.
+
+    @param value : "The value to type check."
+*>
 macro bool is_nil(Value value)      => value.type == NIL;
+
+<*
+    Returns whether the given [value] is a number type.
+
+    @param value : "The value to type check."
+*>
 macro bool is_num(Value value)      => value.type == NUMBER;
+
+<*
+    Returns whether the given [value] is an Obj type.
+
+    @param value : "The value to type check."
+*>
 macro bool is_obj(Value value)      => value.type == OBJECT;
+
+<*
+    Returns whether the given [value] is an undefined type.
+
+    @param value : "The value to type check."
+*>
 macro bool is_undef(Value value)    => value.type == UNDEFINED;
 
 //==============================================================================
@@ -337,46 +441,115 @@ module lox::value @feat(NAN_TAGGING);
 
 //------------------------------------------------------------------------------
 
+<* The NaN boxed representation of a dynamic Value. *>
 typedef Value = inline ulong;
 
 //------------------------------------------------------------------------------
 
-// Bitmask for setting the sign bit of a Value.
+<* Bit mask for setting the 'sign bit' of a Value. *>
 const ulong SIGN_BIT    = (ulong)1 << 63;
 
-// Bitmask for setting the quiet NaN bits of a Value.
+<* Bit mask for setting the quiet NaN bits of a Value. *>
 const ulong QNAN        = (ulong)(0x7ffc000000000000);
 
-// Bitmask for checking the type tag of a singleton Value.
+<* Bit mask for extracting the type tag of a singleton Value. *>
 const int MASK_TAG      = 7;
 
-// Bitmasks that act as type tags for the singleton Values.
+<* Bit mask that acts as a type tag for a NaN Value. *>
 const int TAG_NAN       = 0;
+
+<* Bit mask that acts as a type tag for a nil Value. *>
 const int TAG_NIL       = 1;
+
+<* Bit mask that acts as a type tag for a false boolean Value. *>
 const int TAG_FALSE     = 2;
+
+<* Bit mask that acts as a type tag for a true boolean Value. *>
 const int TAG_TRUE      = 3;
+
+<* Bit mask that acts as a type tag for an undefined Value. *>
 const int TAG_UNDEFINED = 4;
 
-// Singleton Value constants
+<* The NaN boxed singleton Value for the boolean 'false'. *>
 const Value FALSE       = (Value)(ulong)(QNAN | TAG_FALSE);
+
+<* The NaN boxed singleton Value for nil. *>
 const Value NIL         = (Value)(ulong)(QNAN | TAG_NIL);
+
+<* The NaN boxed singleton Value for the boolean 'true'. *>
 const Value TRUE        = (Value)(ulong)(QNAN | TAG_TRUE);
-const Value UNDEFINED   = (Value)(ulong)(QNAN | TAG_TRUE);
+
+<* The NaN boxed singleton Value for an undefined Value. *>
+const Value UNDEFINED   = (Value)(ulong)(QNAN | TAG_UNDEFINED);
 
 //------------------------------------------------------------------------------
 
-// Returns the type tag for a singleton Value.
+<*
+    Returns the type tag for a NaN boxed singleton Value (which must be a singleton!)
+
+    @param value : "The value to extract the tag from."
+*>
 macro int get_tag(Value value)      => (int)(value & MASK_TAG);
 
-// Value -> Primitive
+<*
+    Demotes the given [value] back into a primitive bool.
+
+    @param value : "The value to extract the tag from."
+*>
 macro bool as_bool(Value value)     => value == TRUE;
+
+<*
+    Demotes the given [value] back into a primitive number.
+
+    @param value : "The value to extract the tag from."
+*>
 macro double as_num(Value value)    => bitcast(value, double);
+
+<*
+    Demotes the given [value] back into a primitive Obj.
+
+    @param value : "The value to extract the tag from."
+*>
 macro Obj *as_obj(Value value)      => (Obj *)(uptr)(value & ~(SIGN_BIT | QNAN));
 
-// Value type checking
+<*
+    Returns whether the given [value] is a boolean type.
+
+    @param value : "The value to extract the tag from."
+*>
 macro bool is_bool(Value value)     => value == FALSE || value == TRUE;
+
+<*
+    Returns whether the given [value] is a false boolean type.
+
+    @param value : "The value to type check."
+*>
 macro bool is_false(Value value)    => value == FALSE;
+
+<*
+    Returns whether the given [value] is a nil type.
+
+    @param value : "The value to type check."
+*>
 macro bool is_nil(Value value)      => value == NIL;
+
+<*
+    Returns whether the given [value] is a number type.
+
+    @param value : "The value to type check."
+*>
 macro bool is_num(Value value)      => (value & QNAN) != QNAN;
+
+<*
+    Returns whether the given [value] is an Obj type.
+
+    @param value : "The value to type check."
+*>
 macro bool is_obj(Value value)      => (value & (SIGN_BIT | QNAN)) == (SIGN_BIT) | QNAN;
+
+<*
+    Returns whether the given [value] is an undefined type.
+
+    @param value : "The value to type check."
+*>
 macro bool is_undef(Value value)    => value == UNDEFINED;

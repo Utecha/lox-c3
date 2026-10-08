@@ -2,6 +2,9 @@ module lox::opcode;
 
 //------------------------------------------------------------------------------
 
+<*
+    The defined operation codes (instructions) for the Lox language.
+*>
 enum OpCode : char (String name, int stack_effect)
 {
     // [1B] Instructions

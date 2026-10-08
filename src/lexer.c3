@@ -3,6 +3,9 @@ import lox::token;
 
 //------------------------------------------------------------------------------
 
+<*
+    The lexical analyzer for the Lox language.
+*>
 struct LoxLexer
 {
     char *source;
@@ -14,7 +17,7 @@ struct LoxLexer
 //------------------------------------------------------------------------------
 
 <*
-    Initializes a LoxLexer with [source].
+    Initializes the given lexer with the given [source].
 
     @param [&inout] l : "A pointer to a LoxLexer."
     @param [&inout] source : "A pointer to the beginning of the source code."
@@ -284,7 +287,8 @@ fn Token read_identifier(LoxLexer *l) @local
 }
 
 <*
-    Reads a number from the source and returns a number token.
+    Reads a number from the source. If successful, a number token is returned.
+    Otherwise, an error token is returned.
 
     @param [&inout] l : "A pointer to a LoxLexer."
 *>
@@ -314,7 +318,8 @@ fn Token read_number(LoxLexer *l) @local
 }
 
 <*
-    Reads a string from the source and returns a string token.
+    Reads a string from the source. If successful, a string token is returned.
+    Otherwise, an error token is returned.
 
     @param [&inout] l : "A pointer to a LoxLexer."
 *>

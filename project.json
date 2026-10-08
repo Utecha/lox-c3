@@ -1,7 +1,7 @@
 {
   "langrev": "1",
   "authors": [ "Chandler Warner <cwarneratwork@proton.me>" ],
-  "version": "0.0.5",
+  "version": "0.0.6",
   "warnings": [ "no-unused" ],
   "dependency-search-paths": [ "lib" ],
   "dependencies": [],
@@ -10,7 +10,7 @@
   "test-sources": [ "test/**" ],
   "cpu": "generic",
   "targets": {
-    "debug-no-nan-tagging": {
+    "debug-no-nan": {
       "name": "lox",
       "type": "executable",
       "features": [ "DEBUG" ],
@@ -18,7 +18,7 @@
       "debug-info": "full",
       "safe": true
     },
-    "release-no-nan-tagging": {
+    "release-no-nan": {
       "name": "lox",
       "type": "executable",
       "features": [ ],

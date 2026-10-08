@@ -8,8 +8,10 @@ import std::io @norecurse;
 
 //------------------------------------------------------------------------------
 
+<* A type alias for a pointer to a function for parsing an expression.  *>
 alias ParseFn = fn void (Compiler *cc, bool assignable);
 
+<* The defined levels of precedence that are followed for parsing exprssions. *>
 enum Precedence : int
 {
     NONE,
@@ -26,6 +28,12 @@ enum Precedence : int
     PRIMARY
 }
 
+<*
+    A rule for parsing an expression.
+
+    Each rule maintains the order of precedence and pointers to the appropriate
+    functions for the type of expression.
+*>
 struct ParseRule
 {
     ParseFn prefix;
@@ -33,6 +41,7 @@ struct ParseRule
     Precedence precedence;
 }
 
+<* Maintains the necessary data for parsing the Lox language. *>
 struct Parser
 {
     LoxVM *vm;
@@ -44,6 +53,14 @@ struct Parser
     bool panic_mode;
 }
 
+<*
+    Maintains the necessary data for compiling the Lox language into bytecode.
+
+    A compiler is specific to the function that it is compiling. Since a script
+    itself is an implicit function, the top level (first) compiler is technically
+    non-specific. It maintains the global code and is otherwise just the parent
+    of the next subsequent compiler.
+*>
 struct Compiler
 {
     Parser *parser;
@@ -54,9 +71,13 @@ struct Compiler
 
 //------------------------------------------------------------------------------
 
+<* The maximum number of constants that can be defined in a single function. *>
 const sz MAX_CONSTANTS  = 1 << 16; // 65536
+
+<* The maximum amount of bytecode that can be jumped over. *>
 const sz MAX_JUMP       = 1 << 16; // 65536
 
+<* A table mapping specific tokens to their respective ParseRule's. *>
 const ParseRule[] RULES = {
     [TokenType.LPAREN]      = { &grouping,      null,           NONE },
     [TokenType.RPAREN]      = { null,           null,           NONE },
@@ -110,6 +131,17 @@ const ParseRule[] RULES = {
 
 //------------------------------------------------------------------------------
 
+<*
+    Compiles the given [source] into the appropriate bytecode.
+
+    The top level compiler compiles the entire script as if it were an implicit
+    "main" function. Each subsequent function will receive its own compiler,
+    with the parent being either the top level compiler, or the compiler of the
+    enclosing function.
+
+    @param [&inout] vm : "A pointer to a LoxVM."
+    @param [&inout] source : "A pointer to the beginning of the source code."
+*>
 fn ObjFun *compile(LoxVM *vm, char *source)
 {
     LoxLexer l;
@@ -137,11 +169,24 @@ fn ObjFun *compile(LoxVM *vm, char *source)
 
 //------------------------------------------------------------------------------
 
+<*
+    Returns a pointer to the respective ParseRule for the given token [type].
+
+    @param type : "The token type corresponding to the desired rule."
+*>
 fn ParseRule *get_rule(TokenType type) @local
 {
     return &RULES[type];
 }
 
+<*
+    Initializes the given parser with the given [vm] and [lexer], with the rest
+    of its members being zero initialized.
+
+    @param [&inout] p : "A pointer to a Parser."
+    @param [&inout] vm : "A pointer to a LoxVM."
+    @param [&inout] lexer : "A pointer to a LoxLexer."
+*>
 fn void init_parser(Parser *p, LoxVM *vm, LoxLexer *lexer) @local
 {
     p.vm = vm;
@@ -154,19 +199,44 @@ fn void init_parser(Parser *p, LoxVM *vm, LoxLexer *lexer) @local
     p.panic_mode = false;
 }
 
+<*
+    Initializes the given compiler with a [parent] compiler and a [parser].
+
+    Afterwards, it is initialized with a pointer to a new function object
+    to compile into and added to the stack of compilers held by the LoxVM.
+
+    @param [&inout] cc : "A pointer to a Compiler."
+    @param [inout] parent : "A pointer to a parent Compiler."
+    @param [&inout] parser : "A pointer to a Parser."
+*>
 fn void init(Compiler *cc, Compiler *parent, Parser *parser) @local
 {
     cc.parser = parser;
     cc.parent = parent;
     cc.fun = value::new_function(cc.parser.vm);
 
-    // This is an enforced arbitrary minimum number of slots. When the VM's
-    // stack is allocated, the size will always be `cc.fun.max_slots + 1`,
-    // meaning there is a guarantee of at least 2 slots being available.
+    /*
+     * This is an enforced arbitrary minimum number of slots.
+     *
+     * The `num_slots` property is used to set the compiling function's
+     * 'max_slots' property, which is itself used to determine how large of a
+     * stack to allocate for the VM.
+     *
+     * The size will *always* be at least `fun.max_slots + 1`, meaning the
+     * bare minimum size of the VM's stack is always 2 slots.
+    */
     cc.num_slots = 1;
     cc.parser.vm.compiler = cc;
 }
 
+<*
+    Reports that a compile time error has occurred at the given token.
+
+    @param [&inout] p : "A pointer to a Parser."
+    @param [&inout] t : "A pointer to the Token the error occurred at."
+    @param fmt : "The format string for the error message."
+    @param args : "The arguments for the format string."
+*>
 fn void error_at(Parser *p, Token *t, String fmt, args...) @local
 {
     if (p.panic_mode) return;
@@ -174,10 +244,10 @@ fn void error_at(Parser *p, Token *t, String fmt, args...) @local
     p.had_error = true;
     p.panic_mode = true;
 
-    io::eprintf("[ Compile ] { ln %d } Error", t.line);
+    io::eprintf("{ ln %d } Error", t.line);
     switch (t.type)
     {
-        case ERROR: break; // Lexical Error
+        case ERROR: io::eprintf(": "); // Lexical Error
         case EOF:   io::eprintf(" at EOF: ");
         default:    io::eprintf(" at '%s': ", t.lexeme);
     }
@@ -185,36 +255,77 @@ fn void error_at(Parser *p, Token *t, String fmt, args...) @local
     io::eprintfn(fmt, ...args);
 }
 
+<*
+    Reports that a compile time error has occurred at the previous token.
+
+    @param [&inout] cc : "A pointer to a Compiler."
+    @param fmt : "The format string for the error message."
+    @param args : "The arguments for the format string."
+*>
 fn void ct_error(Compiler *cc, String fmt, args...) @inline @local
 {
     error_at(cc.parser, &cc.parser.previous, fmt, ...args);
 }
 
+<*
+    Reports that a compile time error has occurred at the current token.
+
+    @param [&inout] cc : "A pointer to a Compiler."
+    @param fmt : "The format string for the error message."
+    @param args : "The arguments for the format string."
+*>
 fn void ct_error_current(Compiler *cc, String fmt, args...) @inline @local
 {
     error_at(cc.parser, &cc.parser.current, fmt, ...args);
 }
 
+<*
+    Reports that a compile time error will occur at the next token.
+
+    @param [&inout] cc : "A pointer to a Compiler."
+    @param fmt : "The format string for the error message."
+    @param args : "The arguments for the format string."
+*>
 fn void ct_error_next(Compiler *cc, String fmt, args...) @inline @local
 {
     error_at(cc.parser, &cc.parser.next, fmt, ...args);
 }
 
+<*
+    Returns the type of the previous token.
+
+    @param [&inout] cc : "A pointer to a Compiler."
+*>
 fn TokenType peek_prev(Compiler *cc) @inline @local
 {
     return cc.parser.previous.type;
 }
 
+<*
+    Returns the type of the current token.
+
+    @param [&inout] cc : "A pointer to a Compiler."
+*>
 fn TokenType peek(Compiler *cc) @inline @local
 {
     return cc.parser.current.type;
 }
 
+<*
+    Returns the type of the next token.
+
+    @param [&inout] cc : "A pointer to a Compiler."
+*>
 fn TokenType peek_next(Compiler *cc) @inline @local
 {
     return cc.parser.next.type;
 }
 
+<*
+    Sets up the token chain and loads the next token.
+
+    @param [&inout] cc : "A pointer to a Compiler."
+*>
 fn void advance(Compiler *cc) @local
 {
     cc.parser.previous = cc.parser.current;
@@ -229,6 +340,14 @@ fn void advance(Compiler *cc) @local
     }
 }
 
+<*
+    If the current token matches the expected [type], the token is successfully
+    consumed. Otherwise, an error is reported.
+
+    @param [&inout] cc : "A pointer to a Compiler."
+    @param type : "The type of token expected."
+    @param message : "The error message used when the type does not match."
+*>
 fn void consume(Compiler *cc, TokenType type, String message) @local
 {
     if (peek(cc) == type)
@@ -240,11 +359,24 @@ fn void consume(Compiler *cc, TokenType type, String message) @local
     ct_error_current(cc, message);
 }
 
+<*
+    Returns whether the current token is of the expected [type].
+
+    @param [&inout] cc : "A pointer to a Compiler."
+    @param type : "The type of token expected."
+*>
 fn bool check(Compiler *cc, TokenType type) @local
 {
     return peek(cc) == type;
 }
 
+<*
+    Returns whether the current token is of the expected [type] and advancing
+    to the next if it is.
+
+    @param [&inout] cc : "A pointer to a Compiler."
+    @param type : "The type of token expected."
+*>
 fn bool match(Compiler *cc, TokenType type) @local
 {
     if (!check(cc, type)) return false;
@@ -252,6 +384,22 @@ fn bool match(Compiler *cc, TokenType type) @local
     return true;
 }
 
+<*
+    Attempts to add the given [value] to the compiling functions constants
+    pool.
+
+    If an error has occurred during compilation before this is called, the
+    function is thrown out anyways so it is not added and '-1' is returned.
+
+    If adding the constant is successful, the length of the pool is returned.
+
+    If the maximum number of constants has been reached, the length is still
+    returned, but a compile time error is reported to inform the user that
+    they've reached that limit.
+
+    @param [&inout] cc : "A pointer to a Compiler."
+    @param value : "The Value to add to the constants pool."
+*>
 fn sz add_constant(Compiler *cc, Value value) @local
 {
     if (cc.parser.had_error) return -1;
@@ -272,6 +420,16 @@ fn sz add_constant(Compiler *cc, Value value) @local
     return cc.fun.constants.len() - 1;
 }
 
+<*
+    Emits a single byte argument and the corresponding line data to the
+    compiling functions bytecode and line arrays, respectively, returning the
+    length of the bytecode array.
+
+    The line data is run-length encoded to save some memory.
+
+    @param [&inout] cc : "A pointer to a Compiler."
+    @param byte : "The byte to emit."
+*>
 fn sz emit_byte(Compiler *cc, sz byte) @local
 {
     if (cc.fun.code.len() == 0 ||
@@ -287,6 +445,19 @@ fn sz emit_byte(Compiler *cc, sz byte) @local
     return cc.fun.code.len() - 1;
 }
 
+<*
+    Calls into `emit_byte` to emit a single bytecode instruction.
+
+    Furthermore, this function tracks the high water mark for the VM's stack.
+    It adds the "stack effect" of the given instruction to the compilers
+    expected number of slots.
+
+    If that number grows larger than the maximum slots expected by the function,
+    it is reinitialized with the compilers expected number of slots.
+
+    @param [&inout] cc : "A pointer to a Compiler."
+    @param instruction : "The instruction to emit."
+*>
 fn void emit_opcode(Compiler *cc, OpCode instruction) @local
 {
     emit_byte(cc, instruction.ordinal);
@@ -299,37 +470,84 @@ fn void emit_opcode(Compiler *cc, OpCode instruction) @local
     }
 }
 
+<*
+    Calls into `emit_opcode` to emit two successive bytecode instructions.
+
+    @param [&inout] cc : "A pointer to a Compiler."
+    @param code1 : "The first instruction to emit."
+    @param code2 : "The second instruction to emit."
+*>
 fn void emit_opcodes(Compiler *cc, OpCode code1, OpCode code2) @local
 {
     emit_opcode(cc, code1);
     emit_opcode(cc, code2);
 }
 
+<*
+    Splits up a single byte into two bytes to handle arguments that are larger
+    in size than a single byte.
+
+    Calls into `emit_byte` to emit the split bytes.
+
+    @param [&inout] cc : "A pointer to a Compiler."
+    @param arg : "The byte to split and emit."
+*>
 fn void emit_short(Compiler *cc, sz arg) @local
 {
     emit_byte(cc, (arg >> 8) & 0xff);
     emit_byte(cc, arg & 0xff);
 }
 
+<*
+    Calls into `emit_opcode` and `emit_byte` to emit a single bytecode
+    instruction and a single byte argument, successively.
+
+    @param [&inout] cc : "A pointer to a Compiler."
+    @param arg : "The byte to emit."
+*>
 fn sz emit_opcode_byte(Compiler *cc, OpCode instruction, sz arg) @local
 {
     emit_opcode(cc, instruction);
     return emit_byte(cc, arg);
 }
 
+<*
+    Calls into `emit_opcode` and `emit_short` to emit a single bytecode
+    instruction and a two byte argument, successively.
+
+    @param [&inout] cc : "A pointer to a Compiler."
+    @param arg : "The byte to split and emit."
+*>
 fn void emit_opcode_short(Compiler *cc, OpCode instruction, sz arg) @local
 {
     emit_opcode(cc, instruction);
     emit_short(cc, arg);
 }
 
-fn sz emit_jump(Compiler *cc, OpCode instruction) @local
+<*
+    Emits the given jump [instruction] and two placeholder bytes which are
+    meant to be patched later.
+
+    Returns the length of the bytecode array to keep track of the location of
+    the jump instruction for patching.
+
+    @param [&inout] cc : "A pointer to a Compiler."
+    @param instruction : "The jump instruction to emit."
+*>
+fn sz emit_jump(Compiler *cc, OpCode instruction) @local @nodiscard
 {
     emit_opcode(cc, instruction);
     emit_byte(cc, 0xff);
     return emit_byte(cc, 0xff) - 1;
 }
 
+<*
+    Calculates the amount of bytecode that needs to be jumped over and patches
+    the placeholder bytes for the jump instruction found at [offset] - 1.
+
+    @param [&inout] cc : "A pointer to a Compiler."
+    @param offset : "The index of the first placeholder byte."
+*>
 fn void patch_jump(Compiler *cc, sz offset) @local
 {
     sz jump = cc.fun.code.len() - offset - 2;
@@ -339,17 +557,41 @@ fn void patch_jump(Compiler *cc, sz offset) @local
     cc.fun.code.data[offset + 1] = (char)(jump) & 0xff;
 }
 
+<*
+    Adds the given [value] to the compiling functions constants pool and emits
+    the appropriate bytes to load the constant.
+
+    @param [&inout] cc : "A pointer to a Compiler."
+    @param value : "The value to emit."
+*>
 fn void emit_constant(Compiler *cc, Value value) @local
 {
     sz constant = add_constant(cc, value);
     emit_opcode_short(cc, CONSTANT, constant);
 }
 
+<*
+    Emits a return instruction.
+
+    @param [&inout] cc : "A pointer to a Compiler."
+*>
 fn void emit_return(Compiler *cc) @local
 {
     emit_opcode(cc, RETURN);
 }
 
+<*
+    Finishes up the compilation of the current function.
+
+    If compilation was successful, the return instruction is emitted, the
+    compiler is popped off of the compiler stack, and the function object
+    is returned.
+
+    If a compile error occurs before this function is called, the compiler
+    is simply popped off the compiler stack and 'null' is returned.
+
+    @param [&inout] cc : "A pointer to a Compiler."
+*>
 fn ObjFun *end_compile(Compiler *cc) @local
 {
     // If we hit an error, don't bother finishing the function.
@@ -371,12 +613,25 @@ fn ObjFun *end_compile(Compiler *cc) @local
     return cc.fun;
 }
 
+<*
+    The ParseFn for compiling a "group" expression.
+
+    @param [&inout] cc : "A pointer to a Compiler."
+    @param assignable : "Determines whether the expression is assignable."
+*>
 fn void grouping(Compiler *cc, bool assignable) @local
 {
     expression(cc);
     consume(cc, RPAREN, "Expected ')' after expression");
 }
 
+<*
+    The ParseFn for compiling literal expressions such as numbers, strings,
+    and singletons such as 'nil'.
+
+    @param [&inout] cc : "A pointer to a Compiler."
+    @param assignable : "Determines whether the expression is assignable."
+*>
 fn void literal(Compiler *cc, bool assignable) @local
 {
     switch (peek_prev(cc))
@@ -405,6 +660,12 @@ fn void literal(Compiler *cc, bool assignable) @local
     }
 }
 
+<*
+    The ParseFn for compiling a unary expression.
+
+    @param [&inout] cc : "A pointer to a Compiler."
+    @param assignable : "Determines whether the expression is assignable."
+*>
 fn void unary(Compiler *cc, bool assignable) @local
 {
     TokenType operator = peek_prev(cc);
@@ -418,6 +679,12 @@ fn void unary(Compiler *cc, bool assignable) @local
     }
 }
 
+<*
+    The ParseFn for compiling a binary expression.
+
+    @param [&inout] cc : "A pointer to a Compiler."
+    @param assignable : "Determines whether the expression is assignable."
+*>
 fn void binary(Compiler *cc, bool assignable) @local
 {
     TokenType operator = peek_prev(cc);
@@ -441,6 +708,12 @@ fn void binary(Compiler *cc, bool assignable) @local
     }
 }
 
+<*
+    The ParseFn for compiling a logical AND expression.
+
+    @param [&inout] cc : "A pointer to a Compiler."
+    @param assignable : "Determines whether the expression is assignable."
+*>
 fn void logical_and(Compiler *cc, bool assignable) @local
 {
     sz jump = emit_jump(cc, AND);
@@ -448,6 +721,12 @@ fn void logical_and(Compiler *cc, bool assignable) @local
     patch_jump(cc, jump);
 }
 
+<*
+    The ParseFn for compiling a logical OR expression.
+
+    @param [&inout] cc : "A pointer to a Compiler."
+    @param assignable : "Determines whether the expression is assignable."
+*>
 fn void logical_or(Compiler *cc, bool assignable) @local
 {
     sz jump = emit_jump(cc, OR);
@@ -455,6 +734,12 @@ fn void logical_or(Compiler *cc, bool assignable) @local
     patch_jump(cc, jump);
 }
 
+<*
+    The ParseFn for compiling a conditional (ternary) expression.
+
+    @param [&inout] cc : "A pointer to a Compiler."
+    @param assignable : "Determines whether the expression is assignable."
+*>
 fn void conditional(Compiler *cc, bool assignable) @local
 {
     // Jump to the else branch if the condition is false.
@@ -475,6 +760,12 @@ fn void conditional(Compiler *cc, bool assignable) @local
     patch_jump(cc, else_jump);
 }
 
+<*
+    Parses and compiles an expression based on the given [precedence].
+
+    @param [&inout] cc : "A pointer to a Compiler."
+    @param precedence : "The precedence of the expression."
+*>
 fn void parse_precedence(Compiler *cc, Precedence precedence) @local
 {
     advance(cc);
@@ -498,6 +789,11 @@ fn void parse_precedence(Compiler *cc, Precedence precedence) @local
     }
 }
 
+<*
+    Compiles a single expression.
+
+    @param [&inout] cc : "A pointer to a Compiler."
+*>
 fn void expression(Compiler *cc) @local
 {
     parse_precedence(cc, ASSIGNMENT);

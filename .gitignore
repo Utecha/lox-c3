@@ -6,4 +6,4 @@ build/*
 scratch*
 
 # Other
-resources/previous/*
+resources/previous

@@ -3,6 +3,9 @@ import std::io;
 
 //------------------------------------------------------------------------------
 
+<*
+    The defined types for a token in the Lox language.
+*>
 enum TokenType : int (String name)
 {
     // Operational Delimiters
@@ -73,6 +76,9 @@ enum TokenType : int (String name)
     EOF         { "End of File" }
 }
 
+<*
+    The structure representing a token for the Lox language.
+*>
 struct Token (Printable)
 {
     TokenType type;
