@@ -113,8 +113,7 @@ macro bool is_ident_char(char c) @local
 }
 
 <*
-    Returns the current character being pointed to in the source without
-    advancing to the next.
+    Returns the current character being pointed to in the source without advancing to the next.
 
     @param [&inout] l : "A pointer to a LoxLexer."
 *>
@@ -124,8 +123,7 @@ macro char peek(LoxLexer *l) @local
 }
 
 <*
-    Returns the next character being pointed to in the source without
-    advancing to it.
+    Returns the next character being pointed to in the source without advancing to it.
 
     @param [&inout] l : "A pointer to a LoxLexer."
 *>
@@ -136,8 +134,7 @@ macro char peek_next(LoxLexer *l) @local
 }
 
 <*
-    Returns the current character being pointed to in the source and
-    advances the pointer.
+    Returns the current character being pointed to in the source and advances the pointer.
 
     @param [&inout] l : "A pointer to a LoxLexer."
 *>
@@ -148,8 +145,7 @@ macro char advance(LoxLexer *l) @local
 }
 
 <*
-    Returns whether the current character being pointed to matches the
-    [expected] one.
+    Returns whether the current character being pointed to matches the [expected] one.
 
     @param [&inout] l : "A pointer to a LoxLexer."
     @param expected : "The expected character to match."
@@ -172,8 +168,8 @@ fn void skip_line_comment(LoxLexer *l) @local
 }
 
 <*
-    Skips past all whitespace found in the source up until the next
-    valid character or until the end of the source.
+    Skips past all whitespace found in the source up until the next valid character or until
+    the end of the source.
 
     @param [&inout] l : "A pointer to a LoxLexer."
 *>
@@ -237,8 +233,8 @@ fn Token error_token(LoxLexer *l, String message) @local
 }
 
 <*
-    Returns a new token based on whether the next character matches [c]. If it does,
-    a token is made from type [two]. Otherwise, it is made from type [one].
+    Returns a new token based on whether the next character matches [c]. If it does, a token is made
+    from type [two]. Otherwise, it is made from type [one].
 
     @param [&inout] l : "A pointer to a LoxLexer."
     @param c : "The character to match against."

@@ -31,8 +31,8 @@ enum Precedence : int
 <*
     A rule for parsing an expression.
 
-    Each rule maintains the order of precedence and pointers to the appropriate
-    functions for the type of expression.
+    Each rule maintains the order of precedence and pointers to the appropriate functions for the
+    type of expression.
 *>
 struct ParseRule
 {
@@ -56,10 +56,10 @@ struct Parser
 <*
     Maintains the necessary data for compiling the Lox language into bytecode.
 
-    A compiler is specific to the function that it is compiling. Since a script
-    itself is an implicit function, the top level (first) compiler is technically
-    non-specific. It maintains the global code and is otherwise just the parent
-    of the next subsequent compiler.
+    A compiler is specific to the function that it is compiling. Since a script itself is an
+    implicit function, the top level (first) compiler is technically non-specific.
+
+    It maintains the global code and is otherwise just the parent of the next subsequent compiler.
 *>
 struct Compiler
 {
@@ -134,10 +134,9 @@ const ParseRule[] RULES = {
 <*
     Compiles the given [source] into the appropriate bytecode.
 
-    The top level compiler compiles the entire script as if it were an implicit
-    "main" function. Each subsequent function will receive its own compiler,
-    with the parent being either the top level compiler, or the compiler of the
-    enclosing function.
+    The top level compiler compiles the entire script as if it were an implicit "main" function.
+    Each subsequent function will receive its own compiler, with the parent being either the top
+    level compiler, or the compiler of the enclosing function.
 
     @param [&inout] vm : "A pointer to a LoxVM."
     @param [&inout] source : "A pointer to the beginning of the source code."
@@ -178,8 +177,8 @@ fn ParseRule *get_rule(TokenType type) @local
 }
 
 <*
-    Initializes the given parser with the given [vm] and [lexer], with the rest
-    of its members being zero initialized.
+    Initializes the given parser with the given [vm] and [lexer], with the rest of its members
+    being zero initialized.
 
     @param [&inout] p : "A pointer to a Parser."
     @param [&inout] vm : "A pointer to a LoxVM."
@@ -200,8 +199,8 @@ fn void init_parser(Parser *p, LoxVM *vm, LoxLexer *lexer) @local
 <*
     Initializes the given compiler with a [parent] compiler and a [parser].
 
-    Afterwards, it is initialized with a pointer to a new function object
-    to compile into and added to the stack of compilers held by the LoxVM.
+    Afterwards, it is initialized with a pointer to a new function object to compile into and added
+    to the stack of compilers held by the LoxVM.
 
     @param [&inout] cc : "A pointer to a Compiler."
     @param [inout] parent : "A pointer to a parent Compiler."
@@ -213,20 +212,19 @@ fn void init(Compiler *cc, Compiler *parent, Parser *parser) @local
     cc.parent = parent;
 
     /*
-     * Start the pattern now of initializing fields like the function to null
-     * in case a GC is triggered in the middle of initializing the compiler.
+     * Start the pattern now of initializing fields like the function to null in case a GC is
+     * triggered in the middle of initializing the compiler.
     */
     cc.fun = null;
 
     /*
      * This is an enforced arbitrary minimum number of slots.
      *
-     * The `num_slots` property is used to set the compiling function's
-     * 'max_slots' property, which is itself used to determine how large of a
-     * stack to allocate for the VM.
+     * The `num_slots` property is used to set the compiling function's 'max_slots' property, which
+     * is itself used to determine how large of a stack to allocate for the VM.
      *
-     * The size will *always* be at least `fun.max_slots + 1`, meaning the
-     * bare minimum size of the VM's stack is always 2 slots.
+     * The size will *always* be at least `fun.max_slots + 1`, meaning the bare minimum size of the
+     * VM's stack is always 2 slots.
     */
     cc.num_slots = 1;
 
@@ -346,8 +344,8 @@ fn void advance(Compiler *cc) @local
 }
 
 <*
-    If the current token matches the expected [type], the token is successfully
-    consumed. Otherwise, an error is reported.
+    If the current token matches the expected [type], the token is successfully consumed.
+    Otherwise, an error is reported.
 
     @param [&inout] cc : "A pointer to a Compiler."
     @param type : "The type of token expected."
@@ -376,8 +374,7 @@ fn bool check(Compiler *cc, TokenType type) @local
 }
 
 <*
-    Returns whether the current token is of the expected [type] and advancing
-    to the next if it is.
+    Returns whether the current token is of the expected [type] and advancing to the next if it is.
 
     @param [&inout] cc : "A pointer to a Compiler."
     @param type : "The type of token expected."
@@ -390,17 +387,15 @@ fn bool match(Compiler *cc, TokenType type) @local
 }
 
 <*
-    Attempts to add the given [value] to the compiling functions constants
-    pool.
+    Attempts to add the given [value] to the compiling functions constants pool.
 
-    If an error has occurred during compilation before this is called, the
-    function is thrown out anyways so it is not added and '-1' is returned.
+    If an error has occurred during compilation before this is called, the function is thrown out
+    anyways so it is not added and '-1' is returned.
 
     If adding the constant is successful, the length of the pool is returned.
 
-    If the maximum number of constants has been reached, the length is still
-    returned, but a compile time error is reported to inform the user that
-    they've reached that limit.
+    If the maximum number of constants has been reached, the length is still returned, but a
+    compile time error is reported to inform the user that they've reached that limit.
 
     @param [&inout] cc : "A pointer to a Compiler."
     @param value : "The Value to add to the constants pool."
@@ -415,20 +410,15 @@ fn sz add_constant(Compiler *cc, Value value) @local
     }
     else
     {
-        ct_error(
-            cc,
-            "A function many only contain %d unique constants.",
-            MAX_CONSTANTS
-        );
+        ct_error(cc, "A function many only contain %d unique constants.", MAX_CONSTANTS);
     }
 
     return cc.fun.constants.len() - 1;
 }
 
 <*
-    Emits a single byte argument and the corresponding line data to the
-    compiling functions bytecode and line arrays, respectively, returning the
-    length of the bytecode array.
+    Emits a single byte argument and the corresponding line data to the compiling functions bytecode
+    and line arrays, respectively, returning the length of the bytecode array.
 
     The line data is run-length encoded to save some memory.
 
@@ -454,11 +444,10 @@ fn sz emit_byte(Compiler *cc, sz byte) @local
     Calls into `emit_byte` to emit a single bytecode instruction.
 
     Furthermore, this function tracks the high water mark for the VM's stack.
-    It adds the "stack effect" of the given instruction to the compilers
-    expected number of slots.
+    It adds the "stack effect" of the given instruction to the compilers expected number of slots.
 
-    If that number grows larger than the maximum slots expected by the function,
-    it is reinitialized with the compilers expected number of slots.
+    If that number grows larger than the maximum slots expected by the function, it is
+    reinitialized with the compilers expected number of slots.
 
     @param [&inout] cc : "A pointer to a Compiler."
     @param instruction : "The instruction to emit."
@@ -489,8 +478,8 @@ fn void emit_opcodes(Compiler *cc, OpCode code1, OpCode code2) @local
 }
 
 <*
-    Splits up a single byte into two bytes to handle arguments that are larger
-    in size than a single byte.
+    Splits up a single byte into two bytes to handle arguments that are larger in size than a
+    single byte.
 
     Calls into `emit_byte` to emit the split bytes.
 
@@ -504,8 +493,8 @@ fn void emit_short(Compiler *cc, sz arg) @local
 }
 
 <*
-    Calls into `emit_opcode` and `emit_byte` to emit a single bytecode
-    instruction and a single byte argument, successively.
+    Calls into `emit_opcode` and `emit_byte` to emit a single bytecode instruction and a
+    single byte argument, successively.
 
     @param [&inout] cc : "A pointer to a Compiler."
     @param arg : "The byte to emit."
@@ -517,8 +506,8 @@ fn sz emit_opcode_byte(Compiler *cc, OpCode instruction, sz arg) @local
 }
 
 <*
-    Calls into `emit_opcode` and `emit_short` to emit a single bytecode
-    instruction and a two byte argument, successively.
+    Calls into `emit_opcode` and `emit_short` to emit a single bytecode instruction and a
+    two byte argument, successively.
 
     @param [&inout] cc : "A pointer to a Compiler."
     @param arg : "The byte to split and emit."
@@ -530,11 +519,11 @@ fn void emit_opcode_short(Compiler *cc, OpCode instruction, sz arg) @local
 }
 
 <*
-    Emits the given jump [instruction] and two placeholder bytes which are
-    meant to be patched later.
+    Emits the given jump [instruction] and two placeholder bytes which are meant to be
+    patched later.
 
-    Returns the length of the bytecode array to keep track of the location of
-    the jump instruction for patching.
+    Returns the length of the bytecode array to keep track of the location of the jump
+    instruction for patching.
 
     @param [&inout] cc : "A pointer to a Compiler."
     @param instruction : "The jump instruction to emit."
@@ -547,8 +536,8 @@ fn sz emit_jump(Compiler *cc, OpCode instruction) @local @nodiscard
 }
 
 <*
-    Calculates the amount of bytecode that needs to be jumped over and patches
-    the placeholder bytes for the jump instruction found at [offset] - 1.
+    Calculates the amount of bytecode that needs to be jumped over and patches the placeholder
+    bytes for the jump instruction found at [offset] - 1.
 
     @param [&inout] cc : "A pointer to a Compiler."
     @param offset : "The index of the first placeholder byte."
@@ -563,8 +552,8 @@ fn void patch_jump(Compiler *cc, sz offset) @local
 }
 
 <*
-    Adds the given [value] to the compiling functions constants pool and emits
-    the appropriate bytes to load the constant.
+    Adds the given [value] to the compiling functions constants pool and emits the appropriate bytes
+    to load the constant.
 
     @param [&inout] cc : "A pointer to a Compiler."
     @param value : "The value to emit."
@@ -588,12 +577,11 @@ fn void emit_return(Compiler *cc) @local
 <*
     Finishes up the compilation of the current function.
 
-    If compilation was successful, the return instruction is emitted, the
-    compiler is popped off of the compiler stack, and the function object
-    is returned.
+    If compilation was successful, the return instruction is emitted, the compiler is popped off
+    of the compiler stack, and the function object is returned.
 
-    If a compile error occurs before this function is called, the compiler
-    is simply popped off the compiler stack and 'null' is returned.
+    If a compile error occurs before this function is called, the compiler is simply popped off
+    the compiler stack and 'null' is returned.
 
     @param [&inout] cc : "A pointer to a Compiler."
 *>
@@ -631,8 +619,8 @@ fn void grouping(Compiler *cc, bool assignable) @local
 }
 
 <*
-    The ParseFn for compiling literal expressions such as numbers, strings,
-    and singletons such as 'nil'.
+    The ParseFn for compiling literal expressions such as numbers, strings, and singletons
+    such as 'nil'.
 
     @param [&inout] cc : "A pointer to a Compiler."
     @param assignable : "Determines whether the expression is assignable."
@@ -864,8 +852,7 @@ fn sz parse_variable(Compiler *cc, String message) @local
 }
 
 <*
-    Emits the bytecode to load a global variable and add it to the
-    VM's globals table.
+    Emits the bytecode to set a global variable and add it to the VM's globals table.
 
     @param [&inout] cc : "A pointer to a Compiler."
     @param global : "The index of the variable in the constants pool."
@@ -886,8 +873,7 @@ fn void expression(Compiler *cc) @local
 }
 
 <*
-    Compiles an expression statement, which is any expression followed by a
-    semicolon.
+    Compiles an expression statement, which is any expression followed by a semicolon.
 
     Expression statements evaluate their expression and discard the result.
 
@@ -901,11 +887,9 @@ fn void expression_statement(Compiler *cc) @local
 }
 
 <*
-    Compiles a print statement, which is the keyword 'print' followed by an
-    expression statement.
+    Compiles a print statement, which is the keyword 'print' followed by an expression statement.
 
-    Unlike expression statements, the expression is evaluated and passed on
-    to be printed.
+    Unlike expression statements, the expression is evaluated and passed on to be printed.
 
     @param [&inout] cc : "A pointer to a Compiler."
 *>

@@ -46,8 +46,7 @@ struct Obj
 }
 
 <*
-    Binds a bytecode offset to a line of user source code for run-length
-    encoding line information.
+    Binds a bytecode offset to a line of user source code for run-length encoding line information.
 *>
 struct Line
 {
@@ -58,8 +57,7 @@ struct Line
 <*
     Defines a function object; the main construct behind the language itself.
 
-    A script is just an implicit "main" function object that closes over all
-    other definitions.
+    A script is just an implicit "main" function object that closes over all other definitions.
 *>
 struct ObjFun
 {
@@ -284,8 +282,7 @@ fn ObjFun *new_function(LoxVM *vm)
 }
 
 <*
-    Returns the corresponding line number for the given [offset] of the given
-    functions bytecode.
+    Returns the corresponding line number for the given [offset] of the given functions bytecode.
 
     @param [&inout] fun : "A pointer to an ObjFun."
     @param offset : "The bytecode offset corresponding to a line number."
@@ -304,8 +301,7 @@ fn int get_line(ObjFun *fun, sz offset)
         {
             end = mid - 1;
         }
-        else if (mid == fun.lines.len() - 1 ||
-                 offset < fun.lines[mid + 1].offset)
+        else if (mid == fun.lines.len() - 1 || offset < fun.lines[mid + 1].offset)
         {
             return line.n;
         }
@@ -336,8 +332,7 @@ fn ObjTable *new_table(LoxVM *vm)
 }
 
 <*
-    Releases the memory for the given [table]'s array of entries and zeroes out
-    the pointer.
+    Releases the memory for the given [table]'s array of entries and zeroes out the pointer.
 
     @param [&inout] vm : "A pointer to a LoxVM."
     @param [&inout] table : "A pointer to the ObjTable to clear."
@@ -351,8 +346,7 @@ fn void table_clear(LoxVM *vm, ObjTable *table)
 <*
     Deletes the entry found at the given [key] from the given [table].
 
-    NOTE: This has the potential to shrink the allocation of the entries
-    array.
+    NOTE: This has the potential to shrink the allocation of the entries array.
 
     @param [&inout] vm : "A pointer to a LoxVM."
     @param [&inout] table : "A pointer to an ObjTable."
@@ -364,10 +358,9 @@ fn Value table_delete(LoxVM *vm, ObjTable *table, Value key)
     if (!table_find(table.entries, table.capacity, key, &entry))
         { return NIL; }
 
-    // Remove the value for the entry from the table and replace the entry with
-    // a tombstone. A tombstone is similar to an empty entry, except the value
-    // is set to 'TRUE'. When searching for a key, we stop on empty slots, but
-    // continue past any deleted ones.
+    // Remove the value for the entry from the table and replace the entry with a tombstone.
+    // A tombstone is similar to an empty entry, except the value is set to 'TRUE'. When searching
+    // for a key, we stop on empty slots, but continue past any deleted ones.
     Value value = entry.value;
     entry.key = UNDEFINED;
     entry.value = TRUE;
@@ -391,6 +384,9 @@ fn Value table_delete(LoxVM *vm, ObjTable *table, Value key)
 }
 
 <*
+    Returns the value found at the given [key] within [table], if it exists.
+    Otherwise, it returns `UNDEFINED`.
+
     @param [&inout] table : "A pointer to an ObjTable."
     @param key : "The key for the entry to set."
 *>
@@ -404,9 +400,9 @@ fn Value table_get(ObjTable *table, Value key)
 }
 
 <*
-    If an entry already exists with the given [key], the value is then
-    set to [value]. Otherwise, if it is a new key, the entries key
-    and value fields are set to the given [key] and [value].
+    If an entry already exists with the given [key], the value is then set to [value].
+    Otherwise, if it is a new key, the entries key and value fields are set to the
+    given [key] and [value].
 
     @param [&inout] vm : "A pointer to a LoxVM."
     @param [&inout] table : "A pointer to an ObjTable."
@@ -464,8 +460,8 @@ fn Value new_string(LoxVM *vm, char *data)
 }
 
 <*
-    Pops two string objects off the top of the stack, creates a new one
-    to concatenate the strings, then pushes the result onto the stack.
+    Pops two string objects off the top of the stack, creates a new one to concatenate the strings,
+    then pushes the result onto the stack.
 
     @param [&inout] vm : "A pointer to a LoxVM."
     @param a : "The starting string Value."
@@ -489,8 +485,8 @@ fn Value concatenate(LoxVM *vm, Value a, Value b)
 //--------------------------------------------------------------------------------------------------
 
 <*
-    Returns the full Value representation for a primitive [number] based on
-    whether the `NAN_TAGGING` feature flag exists.
+    Returns the full Value representation for a primitive [number] based on whether the
+    `NAN_TAGGING` feature flag exists.
 
     @param number : "The number to promote."
 *>
@@ -504,8 +500,8 @@ fn Value number_to_value(double number) @inline @local
 }
 
 <*
-    Returns the full Value representation of a primitive [object] based on
-    whether the `NAN_TAGGING` feature flag exists.
+    Returns the full Value representation of a primitive [object] based on whether the
+    `NAN_TAGGING` feature flag exists.
 
     @param [&inout] object : "A pointer to an Obj."
 *>
@@ -521,14 +517,12 @@ fn Value object_to_value(Obj *object) @inline @local
 <*
     Returns whether [a] and [b] are strictly the same Value.
 
-    For objects, this is their identity (pointer) and a direct value equality
-    for unboxed Values.
+    For objects, this is their identity (pointer) and a direct value equality for unboxed Values.
 
-    The implementation is compiled conditionally depending on whether the NaN
-    tagging optimization is enabled.
+    The implementation is dependent on whether the `NAN_TAGGING` feature flag exists.
 
-    If it is, the values are just compared for equality directly as they have
-    unique bit representations.
+    If it does, the values are just compared for equality directly as they have unique bit
+    representations.
 
     @param a : "The first value to compare."
     @param b : "The second value to compare."
@@ -620,8 +614,7 @@ fn void init_obj(LoxVM *vm, Obj *obj, ObjType type) @inline @local
 <*
     Returns a newly allocated ObjString of [length].
 
-    The [length] value is the length of the actual string itself, not
-    including the null byte.
+    The [length] value is the length of the actual string itself, not including the null byte.
 
     @param [&inout] vm : "A pointer to a LoxVM."
     @param length : "The length of the string."
@@ -639,8 +632,7 @@ fn ObjString *allocate_string(LoxVM *vm, sz length) @local
 }
 
 <*
-    Hashes the raw bits of a numeric (traditional) or unboxed
-    (nan-tagging) Value.
+    Hashes the raw bits of a numeric (traditional) or unboxed (nan-tagging) Value.
 
     The code is from the Wren language, which in turn cites:
     - v8's ComputeLongHash(), which in turn cites:
@@ -720,8 +712,13 @@ fn void hash_string(ObjString *string) @local
 }
 
 <*
-    Returns the hash for the given [value], which must be one of the built-in
-    immutable types: nil, bool, class, number, or string.
+    Returns the hash for the given [value], which must be one of the built-in immutable types:
+
+    - Nil
+    - Booleans
+    - Classes
+    - Numbers
+    - Strings
 
     @param value : "The value to hash."
 *>
@@ -746,12 +743,11 @@ fn uint hash(Value value)
 }
 
 <*
-    Searches for an entry with the given [key] using open addressing
-    and linear probing.
+    Searches for an entry with the given [key] using open addressing and linear probing.
 
     If found, the [result] is set to point to it and 'true' is returned.
-    Otherwise, the [result] is set to point to the entry where the key
-    should be inserted and 'false' is returned.
+    Otherwise, the [result] is set to point to the entry where the key should be inserted
+    and 'false' is returned.
 
     @param [inout] entries : "The entries array of the table."
     @param capacity : "The expected capacity to resize to."
@@ -794,8 +790,7 @@ fn bool table_find(TableEntry *entries, sz capacity, Value key, TableEntry **res
 }
 
 <*
-    Probes the entries to find a suitable place to insert the [key]/[value]
-    pair.
+    Probes the entries to find a suitable place to insert the [key]/[value] pair.
 
     Returns 'true' if the key is new. Otherwise, it returns 'false'.
 
@@ -824,9 +819,8 @@ fn bool table_insert(TableEntry *entries, sz capacity, Value key, Value value) @
 <*
     Resizes the given [table] to the given [capacity].
 
-    On resize, a new entries array is allocated with the original entries
-    copied to it. The original entries array is then freed and the pointer
-    is set to the new array.
+    On resize, a new entries array is allocated with the original entries copied to it.
+    The original entries array is then freed and the pointer is set to the new array.
 
     @param [&inout] vm : "A pointer to a LoxVM."
     @param [&inout] table : "A pointer to an ObjTable to resize."

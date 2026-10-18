@@ -68,8 +68,8 @@ fn void LoxArray.append(&self, LoxVM *vm, Type value)
 <*
     Returns the value found at the given [index] within the receiver.
 
-    NOTE: This is an operator overload method and is not meant to be called
-    directly. Instead, index into the LoxArray directly.
+    NOTE: This is an operator overload method and is not meant to be called directly.
+    Instead, index into the LoxArray directly.
 
     @param [&inout] self : "A reference to the receiving LoxArray."
     @param index : "The index of the value to get."
@@ -84,8 +84,8 @@ fn Type LoxArray.get(&self, sz index) @operator([])
 <*
     Returns a reference to the value found at [index] within the receiver.
 
-    NOTE: This is an operator overload method and is not meant to be called
-    directly. Instead, index into the LoxArray directly.
+    NOTE: This is an operator overload method and is not meant to be called directly.
+    Instead, index into the LoxArray directly.
 
     @param [&inout] self : "A reference to the receiving LoxArray."
     @param index : "The index of the value to get a reference to."
@@ -100,8 +100,8 @@ fn Type *LoxArray.get_ref(&self, sz index) @operator(&[])
 <*
     Sets the data found at the given [index] to the given [value].
 
-    NOTE: This is an operator overload method and is not meant to be called
-    directly. Instead, index into the LoxArray directly.
+    NOTE: This is an operator overload method and is not meant to be called directly.
+    Instead, index into the LoxArray directly.
 
     @param [&inout] self : "A reference to the receiving LoxArray."
     @param index : "The index of the data to set."
@@ -117,9 +117,8 @@ fn void LoxArray.set(&self, sz index, Type value) @operator([]=)
 <*
     Returns the length of the receiver.
 
-    NOTE: This is an operator overload method, however it can and essentially
-    is meant to be called directly. You can otherwise just access it through
-    the `length` property. It is up to personal preference.
+    NOTE: This is an operator overload method, however it can and essentially is meant to be called
+    directly. You can otherwise just access it through the `length` property.
 
     @param [&inout] self : "A reference to the receiving LoxArray."
 *>
@@ -131,8 +130,7 @@ fn sz LoxArray.len(&self) @operator(len)
 //--------------------------------------------------------------------------------------------------
 
 <*
-    Resizes the given array by the current length plus the [expected] number of
-    elements to add.
+    Resizes the given array by the current length plus the [expected] number of elements to add.
 
     The memory is managed by the LoxVM reallocator.
 

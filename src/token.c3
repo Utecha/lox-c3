@@ -90,11 +90,13 @@ struct Token (Printable)
 //--------------------------------------------------------------------------------------------------
 
 <*
-    Converts the token [self] into a format string using the formatter [f].
+    Converts the token [self] into a format string using the formatter [f] when [self] is passed
+    into a function expecting a format string.
 
-    NOTE: This is not a method that is meant to be called directly. Similarly
-    to operator overload methods, this method is called when passing the token
-    to a print function (i.e. io::print(token)).
+    NOTE: This is not a method that is meant to be called directly. Similarly to operator overload
+    methods, this method is called when passing the token to a print function.
+
+    Example: `io::printn(token)`
 
     @param [&inout] self : "A reference to the Token to format."
     @param [&inout] f : "The formatter to use."

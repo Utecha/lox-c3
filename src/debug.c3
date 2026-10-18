@@ -42,8 +42,9 @@ fn void disassemble(ObjFun *fun, String name)
 }
 
 <*
-    Disassembles a single instruction found at the given [offset] within the
-    given function. The result is dumped to stdout.
+    Disassembles a single instruction found at the given [offset] within the given function.
+
+    The result is dumped to stdout.
 
     @param [&inout] fun : "A pointer to an ObjFun."
     @param offset : "The offset (index) of the instruction."
@@ -175,7 +176,6 @@ fn sz jump_instruction(String name, ObjFun *fun, sz sign, sz offset) @inline @lo
     jump |= (ushort)fun.code[offset + 2];
 
     io::printfn("%-16s %5d -> %d", name, jump, offset + 3 + sign * jump);
-
     return offset + 3;
 }
 

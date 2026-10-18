@@ -1,10 +1,10 @@
-module lox::math;
+module lox::math @private;
 
 //--------------------------------------------------------------------------------------------------
 
 /**
- * This module is defined to include math macros for use with the VM. This
- * allows us to mimic the `BINARY_OP` macro from the original C implementation.
+ * This module is defined to include math macros for use with the VM. This allows us to mimic the
+ * `BINARY_OP` macro from the original C implementation.
 **/
 
 <* Returns the result of adding two doubles. *>

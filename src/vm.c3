@@ -1,5 +1,6 @@
 module lox;
 import lox::compiler @public;
+import lox::math @public;
 import lox::memory @public;
 import std::io @norecurse;
 
