@@ -3,7 +3,7 @@ import lox::compiler @public;
 import lox::memory @public;
 import std::io @norecurse;
 
-//------------------------------------------------------------------------------
+//--------------------------------------------------------------------------------------------------
 
 <* The possible excuses as to why execution has failed. *>
 excuse
@@ -32,11 +32,12 @@ struct LoxVM
     sz stack_capacity;
     sz bytes_allocated;
     Obj *objects;
+    ObjTable *globals;
     Compiler *compiler;
     LoxConfig config;
 }
 
-//------------------------------------------------------------------------------
+//--------------------------------------------------------------------------------------------------
 
 <*
     Returns a pointer to a newly allocated and initialized LoxVM instance.
@@ -60,6 +61,8 @@ fn LoxVM *new(LoxConfig *config = null)
     vm.stack_capacity = 0;
     vm.bytes_allocated = 0;
     vm.objects = null;
+    // Zero-init first since the VM isn't fully configured yet.
+    vm.globals = null;
     vm.compiler = null;
 
     if (config)
@@ -72,6 +75,8 @@ fn LoxVM *new(LoxConfig *config = null)
         init_config(&vm.config);
     }
 
+    // Now that the VM has its reallocate function pointer, we can allocate a new table.
+    vm.globals = value::new_table(vm);
     return vm;
 }
 
@@ -92,8 +97,7 @@ fn void free(LoxVM *vm)
 <*
     Initializes the given [config] with any remaining arguments.
 
-    The remaining arguments are not required as they have default values
-    associated with them.
+    The remaining arguments are not required as they have default values associated with them.
 
     @param [&inout] config : "A pointer to a LoxConfig to initialize."
     @param reallocate : "A pointer to a function for reallocating memory."
@@ -124,7 +128,7 @@ fn void? interpret(LoxVM *vm, char *source)
     return execute(vm)!;
 }
 
-//------------------------------------------------------------------------------
+//--------------------------------------------------------------------------------------------------
 
 <*
     Reads a byte from the VM's instruction pointer.
@@ -191,8 +195,7 @@ macro Value stack_peek(LoxVM *vm, int distance = 0) @local
 }
 
 <*
-    Resets the pointer to the top of the stack back to the beginning of the
-    stack.
+    Resets the pointer to the top of the stack back to the beginning of the stack.
 
     @param [&inout] vm : "A pointer to a LoxVM."
 *>
@@ -204,8 +207,7 @@ macro void stack_reset(LoxVM *vm) @local
 <*
     Performs a binary operation on the top two values on the stack.
 
-    If one or both values are not a numeric value, a runtime error excuse
-    is returned.
+    If one or both values are not a numeric value, a runtime error excuse is returned.
 
     @param [&inout] vm : "A pointer to a LoxVM."
     @param #valtype : "The conversion macro for the appropriate Value type."
@@ -229,9 +231,8 @@ macro void? @binary_op(LoxVM *vm, #valtype, #op) @local
 <*
     Ensures that the stack has at least the [needed] slots available.
 
-    If the pointer is moved when resizing, the stack top is updated to
-    point to the same relative distance into the new stack as it was in
-    the old one.
+    If the pointer is moved when resizing, the stack top is updated to point to the same relative
+    distance into the new stack as it was in the old one.
 
     @param [&inout] vm : "A pointer to a LoxVM."
     @param needed : "The expected number of slots needed."
@@ -252,8 +253,6 @@ fn void ensure_stack(LoxVM *vm, sz needed) @local
         return;
     }
 
-    // Recalculate any pointers that still point into the old stack to the same
-    // relative distance in the new stack.
     if (vm.stack != old_stack)
     {
         vm.stack_top = vm.stack + (vm.stack_top - old_stack);
@@ -261,8 +260,7 @@ fn void ensure_stack(LoxVM *vm, sz needed) @local
 }
 
 <*
-    Reports a runtime error and returns the excuse for exiting the interpreter
-    loop.
+    Reports a runtime error and returns the excuse for exiting the interpreter loop.
 
     @param [&inout] vm : "A pointer to a LoxVM."
     @param fmt : "The format string for the error message."
@@ -385,6 +383,43 @@ fn void? execute(LoxVM *vm) @local
                 Value a = stack_pop(vm);
                 stack_push(vm, value::make_bool(value::equals(a, b)));
 
+            case PRINT:
+                value::print(stack_pop(vm));
+                io::printn();
+
+            case RETURN:
+                return;
+
+            case CONSTANT:
+                stack_push(vm, read_constant(vm));
+
+            case DEFINE_GLOBAL:
+                Value name = read_constant(vm);
+                value::table_set(vm, vm.globals, name, stack_peek(vm));
+                stack_pop(vm);
+
+            case GET_GLOBAL:
+                Value name = read_constant(vm);
+                Value value = value::table_get(vm.globals, name);
+
+                if (value::is_undef(value))
+                {
+                    return rt_error(vm, "Undefined variable '%s'", value::as_c3string(name))~;
+                }
+
+                stack_push(vm, value);
+
+            case SET_GLOBAL:
+                Value name = read_constant(vm);
+                sz length = vm.globals.length;
+
+                value::table_set(vm, vm.globals, name, stack_peek(vm));
+                if (vm.globals.length > length)
+                {
+                    value::table_delete(vm, vm.globals, name);
+                    return rt_error(vm, "Undefined variable '%s'", value::as_c3string(name))~;
+                }
+
             case JUMP:
                 ushort offset = read_short(vm);
                 vm.ip += offset;
@@ -416,16 +451,6 @@ fn void? execute(LoxVM *vm) @local
                     { stack_pop(vm); }
                 else
                     { vm.ip += offset; }
-
-            case PRINT:
-                value::print(stack_pop(vm));
-                io::printn();
-
-            case RETURN:
-                return;
-
-            case CONSTANT:
-                stack_push(vm, read_constant(vm));
         }
     }
 }

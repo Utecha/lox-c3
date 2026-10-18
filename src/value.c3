@@ -4,7 +4,7 @@ import lox::opcode;
 import lox::memory;
 import std::io @norecurse;
 
-//------------------------------------------------------------------------------
+//--------------------------------------------------------------------------------------------------
 
 <* The percentage capacity at which the table requires resizing. *>
 const sz TABLE_LOAD_PERCENT @local = 75;
@@ -15,7 +15,7 @@ const sz GROWTH_FACTOR      @local = 2;
 <* The minimum capacity of an array or table object. *>
 const sz MIN_CAPACITY       @local = 16;
 
-//------------------------------------------------------------------------------
+//--------------------------------------------------------------------------------------------------
 
 <* A type alias for a VM-managed array of bytes. *>
 alias ByteArray = LoxArray { char };
@@ -101,7 +101,7 @@ struct ObjString
     char[*] data;
 }
 
-//------------------------------------------------------------------------------
+//--------------------------------------------------------------------------------------------------
 
 <*
     Promotes a primitive boolean to a full Lox Value.
@@ -161,7 +161,7 @@ macro bool is_function(Value value) => is_obj_type(value, FUNCTION);
 *>
 macro bool is_string(Value value) => is_obj_type(value, STRING);
 
-//------------------------------------------------------------------------------
+//--------------------------------------------------------------------------------------------------
 
 <*
     Prints the given [value] to stdout.
@@ -486,7 +486,7 @@ fn Value concatenate(LoxVM *vm, Value a, Value b)
     return make_obj(result);
 }
 
-//------------------------------------------------------------------------------
+//--------------------------------------------------------------------------------------------------
 
 <*
     Returns the full Value representation for a primitive [number] based on
@@ -753,7 +753,7 @@ fn uint hash(Value value)
     Otherwise, the [result] is set to point to the entry where the key
     should be inserted and 'false' is returned.
 
-    @param [&inout] entries : "The entries array of the table."
+    @param [inout] entries : "The entries array of the table."
     @param capacity : "The expected capacity to resize to."
     @param key : "The key to find."
     @param result : "The resulting entry."
@@ -859,10 +859,10 @@ fn void table_resize(LoxVM *vm, ObjTable *table, sz capacity) @local
     table.capacity = capacity;
 }
 
-//==============================================================================
+//==================================================================================================
 module lox::value @feat(!NAN_TAGGING);
 
-//------------------------------------------------------------------------------
+//--------------------------------------------------------------------------------------------------
 
 <* Defines the supported types of Values. *>
 enum ValueType : int
@@ -886,7 +886,7 @@ struct Value
     }
 }
 
-//------------------------------------------------------------------------------
+//--------------------------------------------------------------------------------------------------
 
 <* The traditional boolean singleton Value for 'false'. *>
 const Value FALSE       = { FALSE, { 0 } };
@@ -900,7 +900,7 @@ const Value TRUE        = { TRUE, { 0 } };
 <* The traditional singleton Value for an undefined Value. *>
 const Value UNDEFINED   = { UNDEFINED, { 0 } };
 
-//------------------------------------------------------------------------------
+//--------------------------------------------------------------------------------------------------
 
 <*
     Demotes the given [value] back into a primitive bool.
@@ -965,15 +965,15 @@ macro bool is_obj(Value value)      => value.type == OBJECT;
 *>
 macro bool is_undef(Value value)    => value.type == UNDEFINED;
 
-//==============================================================================
+//==================================================================================================
 module lox::value @feat(NAN_TAGGING);
 
-//------------------------------------------------------------------------------
+//--------------------------------------------------------------------------------------------------
 
 <* The NaN boxed representation of a dynamic Value. *>
 typedef Value = inline ulong;
 
-//------------------------------------------------------------------------------
+//--------------------------------------------------------------------------------------------------
 
 <* Bit mask for setting the 'sign bit' of a Value. *>
 const ulong SIGN_BIT    = (ulong)1 << 63;
@@ -1011,7 +1011,7 @@ const Value TRUE        = (Value)(ulong)(QNAN | TAG_TRUE);
 <* The NaN boxed singleton Value for an undefined Value. *>
 const Value UNDEFINED   = (Value)(ulong)(QNAN | TAG_UNDEFINED);
 
-//------------------------------------------------------------------------------
+//--------------------------------------------------------------------------------------------------
 
 <*
     Returns the type tag for a NaN boxed singleton Value (which must be a singleton!)

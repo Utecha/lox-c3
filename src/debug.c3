@@ -5,7 +5,7 @@ import lox::token;
 import lox::value;
 import std::io @norecurse;
 
-//------------------------------------------------------------------------------
+//--------------------------------------------------------------------------------------------------
 
 <* If true, every function is disassembled and dumped after compiling. *>
 const bool DUMP_CODE        = false;
@@ -19,7 +19,7 @@ const bool DUMP_TOKENS      = false;
 <* If true, dumps each instruction followed by the stack contents as they execute. *>
 const bool TRACE_EXECUTION  = false;
 
-//------------------------------------------------------------------------------
+//--------------------------------------------------------------------------------------------------
 
 <*
     Disassembles the complete bytecode for a function.
@@ -83,6 +83,9 @@ fn sz dump_instruction(ObjFun *fun, sz offset)
             return simple_instruction(instruction.name, offset);
 
         case CONSTANT:
+        case DEFINE_GLOBAL:
+        case GET_GLOBAL:
+        case SET_GLOBAL:
             return constant_instruction(instruction.name, fun, offset);
 
         case JUMP:
@@ -137,7 +140,7 @@ fn void dump_tokens(LoxLexer *l)
     io::printn();
 }
 
-//------------------------------------------------------------------------------
+//--------------------------------------------------------------------------------------------------
 
 <*
     Disassembles a constant instruction and dumps the result to stdout.

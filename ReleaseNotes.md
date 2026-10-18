@@ -118,7 +118,7 @@ incorrectly recalculated in the event the stack pointer moves on resize.
 was incorrectly initialized with the type tag for a `TRUE` singleton.
 - Fixed broken output for lexical error reporting and modified the output a bit.
 
-### Other
+### Internal
 
 - Completed doc comments and contracts for the entire project, with the exception
 of the functions in `main`. The documentation is found in `docs/docs.html`.
@@ -190,14 +190,32 @@ table.
 - Jumped ahead a bit and implemented statements, in particular the expression
 and `print` statements.
 
-### Other
+### Fixes
+- Modified the `read_file` function in `main` to be more manual. Attempting to
+run a script that was read using the `file::load` function would lead to strange
+lexical errors about an unexpected character despite being at EOF.
+
+### Internal
 
 - Modified the `value::equals` function to reflect that of Wren's
 implementation. This is largely due to the lack of string interning for
 this implementation of Lox. My attempt to implement it while also having the
 `ObjString` type use flexible array members proved challenging.
 
+## Lox Version 0.0.9
+
+### New Features
+
+- Can define global variables, as well as read their value and assign to them.
+
 ### Fixes
-- Modified the `read_file` function in `main` to be more manual. Attempting to
-run a script that was read using the `file::load` function would lead to strange
-lexical errors about an unexpected character despite being at EOF.
+
+- Removed the null check on the contract for the `table_find` function as it is
+possible for it to be called with a null entries array, triggering a panic. The
+capacity is checked before it executes in full so there wasn't much need for it.
+
+### Internal
+
+- Extended separators to 100 characters, and now allow comments and other code to
+go up to the same limit. Results in less intense verticality and better output
+for the doc comments when generating the docs.

@@ -6,7 +6,7 @@ import lox::token;
 import lox::value;
 import std::io @norecurse;
 
-//------------------------------------------------------------------------------
+//--------------------------------------------------------------------------------------------------
 
 <* A type alias for a pointer to a function for parsing an expression.  *>
 alias ParseFn = fn void (Compiler *cc, bool assignable);
@@ -69,7 +69,7 @@ struct Compiler
     sz num_slots;
 }
 
-//------------------------------------------------------------------------------
+//--------------------------------------------------------------------------------------------------
 
 <* The maximum number of constants that can be defined in a single function. *>
 const sz MAX_CONSTANTS  = 1 << 16; // 65536
@@ -102,7 +102,7 @@ const ParseRule[] RULES = {
     [TokenType.PERCENT]     = { null,           &binary,        FACTOR },
     [TokenType.SLASH]       = { null,           &binary,        FACTOR },
     [TokenType.STAR]        = { null,           &binary,        FACTOR },
-    [TokenType.IDENTIFIER]  = { null,           null,           NONE },
+    [TokenType.IDENTIFIER]  = { &variable,      null,           NONE },
     [TokenType.NUMBER]      = { &literal,       null,           NONE },
     [TokenType.STRING]      = { &literal,       null,           NONE },
     [TokenType.AND]         = { null,           &logical_and,   AND },
@@ -129,7 +129,7 @@ const ParseRule[] RULES = {
     [TokenType.EOF]         = { null,           null,           NONE },
 };
 
-//------------------------------------------------------------------------------
+//--------------------------------------------------------------------------------------------------
 
 <*
     Compiles the given [source] into the appropriate bytecode.
@@ -165,7 +165,7 @@ fn ObjFun *compile(LoxVM *vm, char *source)
     return end_compile(&cc);
 }
 
-//------------------------------------------------------------------------------
+//--------------------------------------------------------------------------------------------------
 
 <*
     Returns a pointer to the respective ParseRule for the given token [type].
@@ -673,6 +673,39 @@ fn void literal(Compiler *cc, bool assignable) @local
 }
 
 <*
+    Compiles a named variable for either a variable read or assignment expression.
+
+    @param [&inout] cc : "A pointer to a Compiler."
+    @param name : "The token for the variable name."
+    @param assignable : "Determines whether the expression is assignable."
+*>
+fn void named_variable(Compiler *cc, Token name, bool assignable)
+{
+    sz arg = identifier_constant(cc, &name);
+
+    if (assignable && match(cc, EQUAL))
+    {
+        expression(cc);
+        emit_opcode_short(cc, SET_GLOBAL, arg);
+    }
+    else
+    {
+        emit_opcode_short(cc, GET_GLOBAL, arg);
+    }
+}
+
+<*
+    Begins the compilation of a variable read or assignment expression.
+
+    @param [&inout] cc : "A pointer to a Compiler."
+    @param assignable : "Determines whether the expression is assignable."
+*>
+fn void variable(Compiler *cc, bool assignable)
+{
+    named_variable(cc, cc.parser.previous, assignable);
+}
+
+<*
     The ParseFn for compiling a unary expression.
 
     @param [&inout] cc : "A pointer to a Compiler."
@@ -799,6 +832,47 @@ fn void parse_precedence(Compiler *cc, Precedence precedence) @local
         ParseFn infix_rule = get_rule(peek_prev(cc)).infix;
         infix_rule(cc, assignable);
     }
+
+    if (assignable && match(cc, EQUAL))
+    {
+        ct_error(cc, "Invalid assignment target.");
+    }
+}
+
+<*
+    Add's the variable [name] to the compiling functions constants pool.
+
+    @param [&inout] cc : "A pointer to a Compiler."
+    @param [&inout] name : "The token for the variable name."
+*>
+fn sz identifier_constant(Compiler *cc, Token *name) @local
+{
+    Value name_val = value::new_string_length(cc.parser.vm, &name.lexeme[0], name.length);
+    return add_constant(cc, name_val);
+}
+
+<*
+    Add's the variable [name] to the compiling functions constants pool.
+
+    @param [&inout] cc : "A pointer to a Compiler."
+    @param message : "The error message."
+*>
+fn sz parse_variable(Compiler *cc, String message) @local
+{
+    consume(cc, IDENTIFIER, message);
+    return identifier_constant(cc, &cc.parser.previous);
+}
+
+<*
+    Emits the bytecode to load a global variable and add it to the
+    VM's globals table.
+
+    @param [&inout] cc : "A pointer to a Compiler."
+    @param global : "The index of the variable in the constants pool."
+*>
+fn void define_variable(Compiler *cc, sz global) @local
+{
+    emit_opcode_short(cc, DEFINE_GLOBAL, global);
 }
 
 <*
@@ -843,6 +917,28 @@ fn void print_statement(Compiler *cc) @local
 }
 
 <*
+    Compiles a variable declaration.
+
+    @param [&inout] cc : "A pointer to a Compiler."
+*>
+fn void var_declaration(Compiler *cc) @local
+{
+    sz global = parse_variable(cc, "Expected variable name.");
+
+    if (match(cc, EQUAL))
+    {
+        expression(cc);
+    }
+    else
+    {
+        emit_opcode(cc, NIL);
+    }
+
+    consume(cc, SEMICOLON, "Expected ';' after variable declaration.");
+    define_variable(cc, global);
+}
+
+<*
     Compiles a statement.
 
     @param [&inout] cc : "A pointer to a Compiler."
@@ -868,6 +964,8 @@ fn void declaration(Compiler *cc) @local
 {
     switch
     {
+        case match(cc, VAR):
+            var_declaration(cc);
         default:
             statement(cc);
     }

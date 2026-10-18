@@ -1,6 +1,6 @@
 module lox::memory;
 
-//------------------------------------------------------------------------------
+//--------------------------------------------------------------------------------------------------
 
 <*
     Defines a pointer to a function for handling the memory allocations within
@@ -11,7 +11,7 @@ module lox::memory;
 *>
 alias LoxReallocFn = fn void *(void *ptr, sz size);
 
-//------------------------------------------------------------------------------
+//--------------------------------------------------------------------------------------------------
 
 <*
     Wrapper around the LoxVM reallocator for allocating a single instance of
@@ -157,7 +157,7 @@ macro next_power_of_two(n)
     return ++r;
 }
 
-//------------------------------------------------------------------------------
+//--------------------------------------------------------------------------------------------------
 
 <*
     The standard reallocator function for the LoxVM.
@@ -180,7 +180,7 @@ fn void *reallocate(LoxVM *vm, void *ptr, sz old_size, sz new_size)
     return vm.config.reallocate(ptr, new_size);
 }
 
-//------------------------------------------------------------------------------
+//--------------------------------------------------------------------------------------------------
 
 <*
     The default implementation of the LoxReallocFn; a function which handles

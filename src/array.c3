@@ -1,7 +1,7 @@
 module lox::array <Type>;
 import lox::memory;
 
-//------------------------------------------------------------------------------
+//--------------------------------------------------------------------------------------------------
 
 <*
     A generic dynamic array structure whose memory is managed by the LoxVM.
@@ -13,7 +13,7 @@ struct LoxArray
     Type *data;
 }
 
-//------------------------------------------------------------------------------
+//--------------------------------------------------------------------------------------------------
 
 <*
     Releases the memory for the underlying array and zeroes out the receiver.
@@ -128,7 +128,7 @@ fn sz LoxArray.len(&self) @operator(len)
     return self.length;
 }
 
-//------------------------------------------------------------------------------
+//--------------------------------------------------------------------------------------------------
 
 <*
     Resizes the given array by the current length plus the [expected] number of
