@@ -67,6 +67,7 @@ struct Compiler
     Compiler *parent;
     ObjFun *fun;
     sz num_slots;
+    ObjTable *constants;
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -228,6 +229,9 @@ fn void init(Compiler *cc, Compiler *parent, Parser *parser) @local
     */
     cc.num_slots = 1;
 
+    // This will be allocated when the first constant is added.
+    cc.constants = null;
+
     cc.parser.vm.compiler = cc;
     cc.fun = value::new_function(cc.parser.vm);
 }
@@ -387,7 +391,7 @@ fn bool match(Compiler *cc, TokenType type) @local
 }
 
 <*
-    Attempts to add the given [value] to the compiling functions constants pool.
+    Attempts to add the given [constant] to the compiling functions constants pool.
 
     If an error has occurred during compilation before this is called, the function is thrown out
     anyways so it is not added and '-1' is returned.
@@ -398,15 +402,30 @@ fn bool match(Compiler *cc, TokenType type) @local
     compile time error is reported to inform the user that they've reached that limit.
 
     @param [&inout] cc : "A pointer to a Compiler."
-    @param value : "The Value to add to the constants pool."
+    @param constant : "The constant to add to the pool."
 *>
-fn sz add_constant(Compiler *cc, Value value) @local
+fn sz add_constant(Compiler *cc, Value constant) @local
 {
     if (cc.parser.had_error) return -1;
 
+    // See if the constant has already been defined, and if so, reuse it.
+    if (cc.constants)
+    {
+        Value existing = value::table_get(cc.constants, constant);
+        if (value::is_num(existing)) return (sz)value::as_num(existing);
+    }
+
     if (cc.fun.constants.len() < MAX_CONSTANTS)
     {
-        cc.fun.constants.append(cc.parser.vm, value);
+        cc.fun.constants.append(cc.parser.vm, constant);
+
+        if (!cc.constants) cc.constants = value::new_table(cc.parser.vm);
+        value::table_set(
+            cc.parser.vm,
+            cc.constants,
+            constant,
+            value::make_num((double)(cc.fun.constants.len() - 1))
+        );
     }
     else
     {
@@ -600,7 +619,7 @@ fn ObjFun *end_compile(Compiler *cc) @local
     cc.parser.vm.compiler = cc.parent;
 
     $if $feat(DEBUG) &&& debug::DUMP_CODE:
-        debug::disassemble(cc.fun, "Script");
+        debug::disassemble(cc.fun, "<script>");
     $endif
 
     return cc.fun;

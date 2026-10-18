@@ -412,10 +412,8 @@ fn void? execute(LoxVM *vm) @local
 
             case SET_GLOBAL:
                 Value name = read_constant(vm);
-                sz length = vm.globals.length;
 
-                value::table_set(vm, vm.globals, name, stack_peek(vm));
-                if (vm.globals.length > length)
+                if (value::table_set(vm, vm.globals, name, stack_peek(vm)))
                 {
                     value::table_delete(vm, vm.globals, name);
                     return rt_error(vm, "Undefined variable '%s'", value::as_c3string(name))~;

@@ -8,7 +8,7 @@ import std::io @norecurse;
 //--------------------------------------------------------------------------------------------------
 
 <* If true, every function is disassembled and dumped after compiling. *>
-const bool DUMP_CODE        = false;
+const bool DUMP_CODE        = true;
 
 <* If true, the contents of the stack are dumped as the instructions execute. *>
 const bool DUMP_STACK       = false;
@@ -80,6 +80,7 @@ fn sz dump_instruction(ObjFun *fun, sz offset)
         case GREATER:
         case LESS:
         case EQUAL:
+        case PRINT:
         case RETURN:
             return simple_instruction(instruction.name, offset);
 

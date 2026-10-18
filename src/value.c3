@@ -277,6 +277,7 @@ fn ObjFun *new_function(LoxVM *vm)
     fun.code = {};
     fun.lines = {};
     fun.constants = {};
+    fun.max_slots = 0;
 
     return fun;
 }
@@ -366,12 +367,12 @@ fn Value table_delete(LoxVM *vm, ObjTable *table, Value key)
     entry.value = TRUE;
 
     table.length--;
-    if (table.length == 0)
-    {
-        // We removed the last item, so free the array.
-        table_clear(vm, table);
-    }
-    else if (table.capacity > MIN_CAPACITY &&
+    // if (table.length == 0)
+    // {
+    //     // We removed the last item, so free the array.
+    //     table_clear(vm, table);
+    // }
+    if (table.capacity > MIN_CAPACITY &&
              table.length < table.capacity / GROWTH_FACTOR * TABLE_LOAD_PERCENT / 100)
     {
         sz capacity = table.capacity / GROWTH_FACTOR;
@@ -409,7 +410,7 @@ fn Value table_get(ObjTable *table, Value key)
     @param key : "The key for the entry to set."
     @param value : "The value for the entry to set."
 *>
-fn void table_set(LoxVM *vm, ObjTable *table, Value key, Value value)
+fn bool table_set(LoxVM *vm, ObjTable *table, Value key, Value value)
 {
     if (table.length + 1 > table.capacity * TABLE_LOAD_PERCENT / 100)
     {
@@ -423,7 +424,10 @@ fn void table_set(LoxVM *vm, ObjTable *table, Value key, Value value)
     {
         // A new key was added.
         table.length++;
+        return true;
     }
+
+    return false;
 }
 
 <*
@@ -782,6 +786,8 @@ fn bool table_find(TableEntry *entries, sz capacity, Value key, TableEntry **res
             *result = entry;
             return true;
         }
+
+        index = (index + 1) & (capacity - 1);
     } while (index != start_index);
 
     assert(tombstone != null, "Table should have tombstones or empty entries.");

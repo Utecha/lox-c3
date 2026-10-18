@@ -22,8 +22,8 @@
       "name": "lox",
       "type": "executable",
       "features": [ ],
-      "opt": "O3",
-      "debug-info": "line-tables",
+      "opt": "O2",
+      "debug-info": "none",
       "safe": false
     },
     "debug": {
@@ -38,8 +38,8 @@
       "name": "lox",
       "type": "executable",
       "features": [ "NAN_TAGGING" ],
-      "opt": "O3",
-      "debug-info": "line-tables",
+      "opt": "O2",
+      "debug-info": "none",
       "safe": false
     }
   }

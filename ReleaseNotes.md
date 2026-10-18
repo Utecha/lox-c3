@@ -94,7 +94,7 @@ of a stack to allocate.
 - Fixed bug causing number Values to be incorrectly created with the NaN tagging
 optimization enabled.
 
-### Other
+### Internal
 
 - Removed temporary functions from `lox::value`.
 - Moved to using separate functions for the bytecode debug dumping
@@ -219,3 +219,25 @@ capacity is checked before it executes in full so there wasn't much need for it.
 - Extended separators to 100 characters, and now allow comments and other code to
 go up to the same limit. Results in less intense verticality and better output
 for the doc comments when generating the docs.
+
+## Lox Version 0.0.10
+
+### Fixes
+
+- Fixed bug in `table_find` where the index was not updated at all during
+the probing of the table.
+- Fixed missing opcode for `print` statements in the disassembler.
+- Fixed a bug where freeing the VM's globals table when the length hit 0
+would cause the VM to segfault when trying to free a function. Temporary
+solution is to no longer do that until I can figure out the reason that
+happens. The important part is that, according to valgrind, all memory is
+ultimately being freed.
+- Fixed minor bug where the functions max slots value was uninitialized
+on creation of a new function.
+- Changed release builds to no longer emit debug-info as the `line-tables`
+entry causes the C3 compiler to segfault when attempting to build.
+
+### Internal
+
+- Converted `table_set` to return a boolean, returning `true` if the key
+is newly added and `false` if it was pre-existing.
