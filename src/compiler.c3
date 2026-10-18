@@ -158,12 +158,10 @@ fn ObjFun *compile(LoxVM *vm, char *source)
     Compiler cc;
     init(&cc, null, &p);
 
-    advance(&cc); // Load next -> current
-    advance(&cc); // Load current -> previous
+    advance(&cc); // Load the first token into next
+    advance(&cc); // Copy next -> current
 
-    expression(&cc);
-    consume(&cc, EOF, "Expected end of expression");
-
+    while (!match(&cc, EOF)) declaration(&cc);
     return end_compile(&cc);
 }
 
@@ -213,7 +211,12 @@ fn void init(Compiler *cc, Compiler *parent, Parser *parser) @local
 {
     cc.parser = parser;
     cc.parent = parent;
-    cc.fun = value::new_function(cc.parser.vm);
+
+    /*
+     * Start the pattern now of initializing fields like the function to null
+     * in case a GC is triggered in the middle of initializing the compiler.
+    */
+    cc.fun = null;
 
     /*
      * This is an enforced arbitrary minimum number of slots.
@@ -226,7 +229,9 @@ fn void init(Compiler *cc, Compiler *parent, Parser *parser) @local
      * bare minimum size of the VM's stack is always 2 slots.
     */
     cc.num_slots = 1;
+
     cc.parser.vm.compiler = cc;
+    cc.fun = value::new_function(cc.parser.vm);
 }
 
 <*
@@ -804,4 +809,101 @@ fn void parse_precedence(Compiler *cc, Precedence precedence) @local
 fn void expression(Compiler *cc) @local
 {
     parse_precedence(cc, ASSIGNMENT);
+}
+
+<*
+    Compiles an expression statement, which is any expression followed by a
+    semicolon.
+
+    Expression statements evaluate their expression and discard the result.
+
+    @param [&inout] cc : "A pointer to a Compiler."
+*>
+fn void expression_statement(Compiler *cc) @local
+{
+    expression(cc);
+    consume(cc, SEMICOLON, "Expected ';' after expression");
+    emit_opcode(cc, POP);
+}
+
+<*
+    Compiles a print statement, which is the keyword 'print' followed by an
+    expression statement.
+
+    Unlike expression statements, the expression is evaluated and passed on
+    to be printed.
+
+    @param [&inout] cc : "A pointer to a Compiler."
+*>
+fn void print_statement(Compiler *cc) @local
+{
+    expression(cc);
+    consume(cc, SEMICOLON, "Expected ';' after expression");
+    emit_opcode(cc, PRINT);
+}
+
+<*
+    Compiles a statement.
+
+    @param [&inout] cc : "A pointer to a Compiler."
+*>
+fn void statement(Compiler *cc) @local
+{
+    switch
+    {
+        case match(cc, PRINT):
+            print_statement(cc);
+
+        default:
+            expression_statement(cc);
+    }
+}
+
+<*
+    Compiles a declaration.
+
+    @param [&inout] cc : "A pointer to a Compiler."
+*>
+fn void declaration(Compiler *cc) @local
+{
+    switch
+    {
+        default:
+            statement(cc);
+    }
+
+    if (cc.parser.panic_mode) synchronize(cc);
+}
+
+<*
+    Synchronizes the parser after an error has occurred by advancing
+    to the nearest statement boundary.
+
+    @param [&inout] cc : "A pointer to a Compiler."
+*>
+fn void synchronize(Compiler *cc) @local
+{
+    while (peek(cc) != EOF)
+    {
+        if (peek_prev(cc) == SEMICOLON) return;
+        switch (peek(cc))
+        {
+            case CLASS:
+            case CONST:
+            case FOR:
+            case FUN:
+            case IF:
+            case PRINT:
+            case RETURN:
+            case STATIC:
+            case VAR:
+            case WHILE:
+                return;
+
+            default:
+                ; // Do nothing
+        }
+
+        advance(cc);
+    }
 }

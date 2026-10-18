@@ -22,6 +22,7 @@ enum OpCode : char (String name, int stack_effect)
     GREATER     { "Greater", 1 },
     LESS        { "Less", 1 },
     EQUAL       { "Equal", 1 },
+    PRINT       { "Print", -1 },
     RETURN      { "Return", 0 },
 
     // [3B] Instructions

@@ -53,15 +53,37 @@ fn void free_vm() @local
 *>
 fn char *read_file(String path) @local
 {
-    char[]? result = file::load(mem, path);
-    if (catch result)
+    File? file = file::open(path, "rb");
+    if (catch file)
     {
         io::eprintfn("Could not open file '%s'. Did you spell it right?", path);
-        exitcode = 65;
+        return null;
+    }
+    defer (void) file.close();
+
+    sz? file_size = file.size();
+    if (catch file_size)
+    {
+        io::eprintfn("Could not stat file '%s'.", path);
         return null;
     }
 
-    return &result[0];
+    char *buffer = (char *)malloc(file_size + 1);
+    if (!buffer)
+    {
+        io::eprintfn("Not enough memory to read '%s'.", path);
+        return null;
+    }
+
+    sz? bytes_read = file.read(buffer[:file_size]);
+    if (catch bytes_read)
+    {
+        io::eprintfn("Could not read file '%s'.", path);
+        return null;
+    }
+
+    buffer[bytes_read] = '\0';
+    return buffer;
 }
 
 <*

@@ -30,8 +30,8 @@ struct LoxVM
     Value *stack;
     Value *stack_top;
     sz stack_capacity;
-    Obj *objects;
     sz bytes_allocated;
+    Obj *objects;
     Compiler *compiler;
     LoxConfig config;
 }
@@ -58,8 +58,8 @@ fn LoxVM *new(LoxConfig *config = null)
     vm.stack = null;
     vm.stack_top = null;
     vm.stack_capacity = 0;
-    vm.objects = null;
     vm.bytes_allocated = 0;
+    vm.objects = null;
     vm.compiler = null;
 
     if (config)
@@ -417,9 +417,11 @@ fn void? execute(LoxVM *vm) @local
                 else
                     { vm.ip += offset; }
 
-            case RETURN:
+            case PRINT:
                 value::print(stack_pop(vm));
                 io::printn();
+
+            case RETURN:
                 return;
 
             case CONSTANT:

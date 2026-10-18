@@ -139,3 +139,65 @@ with flexible array members, which increases performance when allocating and
 accessing a string as compared to the original implementation.
 - Implemented the string hashing functions early.
 - Added support for string concatenation.
+
+## Lox Version 0.0.8
+
+The major point of this release is the introduction of the new `ObjTable`
+object. This replaces the old `Table` from the original implementation, which
+allows for the inclusion of tables as a usable construct in Lox.
+
+Each entry in a table is now a pair of Values for the key/value, rather than
+an `ObjString *` for the key and a `Value` for the value.
+
+As a result, it became a little bit more challenging to correctly intern
+the strings. Even before making this change, there were issues that I
+could not figure out that came about as a result of using flexible array
+members for storing the string data.
+
+Essentially, the *first* instance of a string equality operation, say
+`"Hello" == "Hello"`, would result in a value of `false`, which in this
+example is obviously not true (no pun intended.)
+
+Using the REPL, you can immediately run that same code again under the
+purview of the same LoxVM instance. Doing so would result in the correct value
+of `true`. The struggle came down to figuring out *why* it would not work on
+the first attempt, but would immediately after assuming you're in the same
+instance.
+
+As you can imagine, this meant that when running a script, which produces
+a separate instance each time, the result would always be `false`.
+
+However, it would strangely work on the first attempt, even when run from a
+script, if you did a concatenation within the same expression:
+
+```c
+// Result: 'true'.
+"Hello" + ", World!" == "Hello, World!"
+```
+
+All of that to say that strings are no longer interned, so each instance
+of a string literal will always result in a new string object.
+
+I feel like there is a way to make it work, but I have not yet figured it
+out, and in all fairness, Wren made the same concessions for what I assume
+are the same reasons.
+
+### New Features
+
+- Reimplemented the original `Table` into the new `ObjTable` type.
+- All immutable Value types are now hashable and usable as keys/values in a
+table.
+- Jumped ahead a bit and implemented statements, in particular the expression
+and `print` statements.
+
+### Other
+
+- Modified the `value::equals` function to reflect that of Wren's
+implementation. This is largely due to the lack of string interning for
+this implementation of Lox. My attempt to implement it while also having the
+`ObjString` type use flexible array members proved challenging.
+
+### Fixes
+- Modified the `read_file` function in `main` to be more manual. Attempting to
+run a script that was read using the `file::load` function would lead to strange
+lexical errors about an unexpected character despite being at EOF.
