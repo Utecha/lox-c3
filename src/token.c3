@@ -68,7 +68,7 @@ enum TokenType : int (String name)
     SUPER       { "[KW] Super" },
     THIS        { "[KW] This" },
     TRUE        { "[KW] True" },
-    VAR         { "[KW] VAR" },
+    VAR         { "[KW] Var" },
     WHILE       { "[KW] While" },
 
     // Special

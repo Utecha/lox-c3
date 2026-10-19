@@ -755,8 +755,8 @@ fn void named_variable(Compiler *cc, Token name, bool assignable)
 
         switch (set_op)
         {
-            case GET_LOCAL:     emit_opcode_byte(cc, set_op, arg); // 2 bytes
-            case GET_GLOBAL:    emit_opcode_short(cc, set_op, arg); // 3 bytes
+            case SET_LOCAL:     emit_opcode_byte(cc, set_op, arg); // 2 bytes
+            case SET_GLOBAL:    emit_opcode_short(cc, set_op, arg); // 3 bytes
             default:            unreachable();
         }
     }

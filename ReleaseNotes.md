@@ -245,3 +245,5 @@ as they pop 2 values (-2) and push one (+1) for a total of -1.
 - Converted `table_set` to return a boolean, returning `true` if the key
 is newly added and `false` if it was pre-existing.
 - Added new `GET_LOCAL` and `SET_LOCAL` instructions.
+- Added a table of constants to the compiler directly to help de-duplicate
+constant definitions.
