@@ -391,6 +391,14 @@ fn void? execute(LoxVM *vm) @local
             case RETURN:
                 return;
 
+            case GET_LOCAL:
+                char slot = read_byte(vm);
+                stack_push(vm, vm.stack[slot]);
+
+            case SET_LOCAL:
+                char slot = read_byte(vm);
+                vm.stack[slot] = stack_peek(vm);
+
             case CONSTANT:
                 stack_push(vm, read_constant(vm));
 

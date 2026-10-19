@@ -84,6 +84,10 @@ fn sz dump_instruction(ObjFun *fun, sz offset)
         case RETURN:
             return simple_instruction(instruction.name, offset);
 
+        case GET_LOCAL:
+        case SET_LOCAL:
+            return byte_instruction(instruction.name, fun, offset);
+
         case CONSTANT:
         case DEFINE_GLOBAL:
         case GET_GLOBAL:
@@ -181,7 +185,26 @@ fn sz jump_instruction(String name, ObjFun *fun, sz sign, sz offset) @inline @lo
 }
 
 <*
+    Disassembles a "byte" instruction and dumps the result to stdout.
+
+    A byte instruction is a more complex instruction that only takes a single byte argument.
+
+    @param name : "The name of the instruction."
+    @param [&inout] fun : "The function being disassembled."
+    @param offset : "The offset (index) in the bytecode."
+*>
+fn sz byte_instruction(String name, ObjFun *fun, sz offset) @inline @local
+{
+    char slot = fun.code[offset + 1];
+    io::printfn("%-16s %5d", name, slot);
+    return offset + 2;
+}
+
+<*
     Dumps a simple instruction to stdout.
+
+    A simple instruction is, as the name suggests, a basic instruction that does not take any
+    arguments.
 
     @param name : "The name of the instruction."
     @param offset : "The offset (index) in the bytecode."

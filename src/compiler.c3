@@ -53,6 +53,13 @@ struct Parser
     bool panic_mode;
 }
 
+<* Contains the necessary data to manage local variables. *>
+struct Local
+{
+    Token name;
+    sz depth;
+}
+
 <*
     Maintains the necessary data for compiling the Lox language into bytecode.
 
@@ -68,6 +75,9 @@ struct Compiler
     ObjFun *fun;
     sz num_slots;
     ObjTable *constants;
+    Local[MAX_LOCALS] locals;
+    sz num_locals;
+    sz scope_depth;
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -77,6 +87,9 @@ const sz MAX_CONSTANTS  = 1 << 16; // 65536
 
 <* The maximum amount of bytecode that can be jumped over. *>
 const sz MAX_JUMP       = 1 << 16; // 65536
+
+<* The maximum number of locals that can be defined and in scope in a single function. *>
+const sz MAX_LOCALS     = 1 << 8; // 256
 
 <* A table mapping specific tokens to their respective ParseRule's. *>
 const ParseRule[] RULES = {
@@ -211,11 +224,6 @@ fn void init(Compiler *cc, Compiler *parent, Parser *parser) @local
 {
     cc.parser = parser;
     cc.parent = parent;
-
-    /*
-     * Start the pattern now of initializing fields like the function to null in case a GC is
-     * triggered in the middle of initializing the compiler.
-    */
     cc.fun = null;
 
     /*
@@ -229,9 +237,9 @@ fn void init(Compiler *cc, Compiler *parent, Parser *parser) @local
     */
     cc.num_slots = 1;
 
-    // This will be allocated when the first constant is added.
     cc.constants = null;
-
+    cc.num_locals = 0;
+    cc.scope_depth = 0;
     cc.parser.vm.compiler = cc;
     cc.fun = value::new_function(cc.parser.vm);
 }
@@ -626,6 +634,44 @@ fn ObjFun *end_compile(Compiler *cc) @local
 }
 
 <*
+    Used to indicate the start of a scope.
+
+    @param [&inout] cc : "A pointer to a Compiler."
+*>
+fn void begin_scope(Compiler *cc) @local
+{
+    cc.scope_depth++;
+}
+
+<*
+    Used to indicate that we are leaving a scope that starts with a call to `begin_scope`.
+
+    @param [&inout] cc : "A pointer to a Compiler."
+*>
+fn void end_scope(Compiler *cc) @local
+{
+    cc.scope_depth--;
+
+    while (cc.num_locals > 0 && cc.locals[cc.num_locals - 1].depth > cc.scope_depth)
+    {
+        emit_opcode(cc, POP);
+        cc.num_locals--;
+    }
+}
+
+<*
+    Wraps the statements passed into [@body] in a scope.
+
+    @param [&inout] cc : "A pointer to a Compiler."
+*>
+macro @scope(Compiler *cc; @body) @local
+{
+    begin_scope(cc);
+    @body();
+    end_scope(cc);
+}
+
+<*
     The ParseFn for compiling a "group" expression.
 
     @param [&inout] cc : "A pointer to a Compiler."
@@ -688,16 +734,40 @@ fn void literal(Compiler *cc, bool assignable) @local
 *>
 fn void named_variable(Compiler *cc, Token name, bool assignable)
 {
-    sz arg = identifier_constant(cc, &name);
+    OpCode get_op, set_op;
+    sz arg = resolve_local(cc, &name);
+
+    if (arg != -1)
+    {
+        get_op = GET_LOCAL;
+        set_op = SET_LOCAL;
+    }
+    else
+    {
+        arg = identifier_constant(cc, &name);
+        get_op = GET_GLOBAL;
+        set_op = SET_GLOBAL;
+    }
 
     if (assignable && match(cc, EQUAL))
     {
         expression(cc);
-        emit_opcode_short(cc, SET_GLOBAL, arg);
+
+        switch (set_op)
+        {
+            case GET_LOCAL:     emit_opcode_byte(cc, set_op, arg); // 2 bytes
+            case GET_GLOBAL:    emit_opcode_short(cc, set_op, arg); // 3 bytes
+            default:            unreachable();
+        }
     }
     else
     {
-        emit_opcode_short(cc, GET_GLOBAL, arg);
+        switch (get_op)
+        {
+            case GET_LOCAL:     emit_opcode_byte(cc, get_op, arg); // 2 bytes
+            case GET_GLOBAL:    emit_opcode_short(cc, get_op, arg); // 3 bytes
+            default:            unreachable();
+        }
     }
 }
 
@@ -859,6 +929,92 @@ fn sz identifier_constant(Compiler *cc, Token *name) @local
 }
 
 <*
+    Compares the lexemes of the two given tokens to and returns whether they are equal.
+
+    @param [&inout] a : "The first token to compare."
+    @param [&inout] b : "The second token to compare."
+*>
+fn bool identifiers_equal(Token *a, Token *b) @local
+{
+    if (a.length != b.length) return false;
+    return mem::equals(&a.lexeme[0], &b.lexeme[0], a.length);
+}
+
+<*
+    Adds a local variable to the compilers local variables pool.
+
+    @param [&inout] cc : "A pointer to a Compiler."
+    @param name : "The name of the local."
+*>
+fn void add_local(Compiler *cc, Token name) @local
+{
+    if (cc.num_locals == MAX_LOCALS)
+    {
+        ct_error(cc, "Too many local variables defined in function.");
+        return;
+    }
+
+    Local *local = &cc.locals[cc.num_locals++];
+    local.name = name;
+    local.depth = -1;
+}
+
+<*
+    Walks the list of locals that are currently in scope and checks if [name] matches one of
+    those locals.
+
+    Returns the index if successful. Otherwise, it returns `-1`.
+
+    @param [&inout] cc : "A pointer to a Compiler."
+    @param [&inout] name : "A pointer to the name of the local."
+*>
+fn sz resolve_local(Compiler *cc, Token *name) @local
+{
+    for (sz i = cc.num_locals - 1; i >= 0; i--)
+    {
+        Local *local = &cc.locals[i];
+        if (identifiers_equal(name, &local.name))
+        {
+            if (local.depth == -1)
+            {
+                ct_error(cc, "Cannot read a local variable within its own initializer.");
+            }
+
+            return i;
+        }
+    }
+
+    return -1;
+}
+
+<*
+    Compiles a local declaration and adds it to the pool of local variables.
+
+    If it's already defined in the current scope, a compile time error is
+    reported.
+
+    @param [&inout] cc : "A pointer to a Compiler."
+*>
+fn void declare_variable(Compiler *cc) @local
+{
+    if (cc.scope_depth == 0) return;
+
+    Token *name = &cc.parser.previous;
+    for (sz i = cc.num_locals - 1; i >= 0; i--)
+    {
+        Local *local = &cc.locals[i];
+        if (local.depth != -1 && local.depth < cc.scope_depth) break;
+
+        if (identifiers_equal(name, &local.name))
+        {
+            ct_error(cc, "Already a variable with this name in this scope.");
+        }
+    }
+
+    add_local(cc, *name);
+}
+
+<*
     Add's the variable [name] to the compiling functions constants pool.
 
     @param [&inout] cc : "A pointer to a Compiler."
@@ -867,7 +1023,21 @@ fn sz identifier_constant(Compiler *cc, Token *name) @local
 fn sz parse_variable(Compiler *cc, String message) @local
 {
     consume(cc, IDENTIFIER, message);
+
+    declare_variable(cc);
+    if (cc.scope_depth > 0) return 0;
+
     return identifier_constant(cc, &cc.parser.previous);
+}
+
+<*
+    Marks a local variable as being initialized by setting its scope depth.
+
+    @param [&inout] cc : "A pointer to a Compiler."
+*>
+fn void mark_initialized(Compiler *cc) @local
+{
+    cc.locals[cc.num_locals - 1].depth = cc.scope_depth;
 }
 
 <*
@@ -878,6 +1048,14 @@ fn sz parse_variable(Compiler *cc, String message) @local
 *>
 fn void define_variable(Compiler *cc, sz global) @local
 {
+    // Local Variable
+    if (cc.scope_depth > 0)
+    {
+        mark_initialized(cc);
+        return;
+    }
+
+    // Global Variable
     emit_opcode_short(cc, DEFINE_GLOBAL, global);
 }
 
@@ -889,6 +1067,17 @@ fn void define_variable(Compiler *cc, sz global) @local
 fn void expression(Compiler *cc) @local
 {
     parse_precedence(cc, ASSIGNMENT);
+}
+
+<*
+    Compiles a block of declarations.
+
+    @param [&inout] cc : "A pointer to a Compiler."
+*>
+fn void block(Compiler *cc) @local
+{
+    while (!check(cc, RBRACE) && !check(cc, EOF)) declaration(cc);
+    consume(cc, RBRACE, "Expected '}' after block.");
 }
 
 <*
@@ -952,6 +1141,9 @@ fn void statement(Compiler *cc) @local
     {
         case match(cc, PRINT):
             print_statement(cc);
+
+        case match(cc, LBRACE):
+            @scope(cc) { block(cc); };
 
         default:
             expression_statement(cc);

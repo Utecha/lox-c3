@@ -232,12 +232,16 @@ would cause the VM to segfault when trying to free a function. Temporary
 solution is to no longer do that until I can figure out the reason that
 happens. The important part is that, according to valgrind, all memory is
 ultimately being freed.
-- Fixed minor bug where the functions max slots value was uninitialized
+- Fixed minor bug where the functions `max_slots` value was uninitialized
 on creation of a new function.
 - Changed release builds to no longer emit debug-info as the `line-tables`
 entry causes the C3 compiler to segfault when attempting to build.
+- Adjusted the stack effects of several instructions that were incorrect.
+For example, all of the binary operations had to be switched from 1 to -1,
+as they pop 2 values (-2) and push one (+1) for a total of -1.
 
 ### Internal
 
 - Converted `table_set` to return a boolean, returning `true` if the key
 is newly added and `false` if it was pre-existing.
+- Added new `GET_LOCAL` and `SET_LOCAL` instructions.
