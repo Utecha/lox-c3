@@ -8,6 +8,18 @@ It will still be Lox in the end, however certain internal functions and data
 structures will be different from the original implementation for one reason
 or another.
 
+## Table of Contents
+
+- [Lox Version 0.0.2](#lox-version-002)
+- [Lox Version 0.0.3](#lox-version-003)
+- [Lox Version 0.0.4](#lox-version-004)
+- [Lox Version 0.0.5](#lox-version-005)
+- [Lox Version 0.0.6](#lox-version-006)
+- [Lox Version 0.0.7](#lox-version-007)
+- [Lox Version 0.0.8](#lox-version-008)
+- [Lox Version 0.0.9](#lox-version-009)
+- [Lox Version 0.0.10](#lox-version-0010)
+
 ## Lox Version 0.0.2
 
 - Added the `lox` and `lox::memory` modules.
@@ -223,6 +235,36 @@ for the doc comments when generating the docs.
 ## Lox Version 0.0.10
 
 Mostly just bug fixes in this one, but there are a few new features introduced.
+
+I had planned on implementing `const` declarations (both global and local) in
+this update as well, however it proved practically impossible to bolt it on
+to the current system. To do it properly, I would have to completely rework how
+reading and assigning to variables works internally.
+
+The problem comes down to not having the information available at the time of
+compiling a read/assignment to know whether the definition of that variable was
+declared `const` or not. This is only actually true for *global* variables,
+though. Implementing local constants was as simple as adding an `is_const` flag
+to the `Local` struct and then doing checks for that later.
+
+The original implementation (which is basically what we have right now) does not
+have such a structure for global variables. That would be one option for dealing
+with this problem.
+
+The other would involve rewriting the parser to handle much more context, which
+is not (or doesn't have to be, more accurately) as complex as it sounds. The idea
+would be to fully tokenize the source code *before* moving on to the parser. This
+is more in like with how the Java implementation of Lox works.
+
+This would allow the parser to have the full context of the source code available
+to it at once, rather than just 2-3 tokens at once (the previous, current, and
+next, the latter of which is not currently implemented but also would not help in
+this case.)
+
+All in all, I believe it's better to leave it alone for now, and save such a task
+for later on. I'm debating on whether I will tackle this after I have functions
+implemented, or if I'm going to just "finish" the language off before coming back
+to change things and make new additions. More than likely I will do the latter.
 
 ### New Features
 
