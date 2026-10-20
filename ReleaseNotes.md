@@ -222,6 +222,13 @@ for the doc comments when generating the docs.
 
 ## Lox Version 0.0.10
 
+Mostly just bug fixes in this one, but there are a few new features introduced.
+
+### New Features
+
+- Added block statements wrapped in `{}`.
+- Added support for local variables.
+
 ### Fixes
 
 - Fixed bug in `table_find` where the index was not updated at all during
